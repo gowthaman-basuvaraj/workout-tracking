@@ -1,0 +1,13 @@
+# Normalise to LF in the repository. Without this, committing from Windows stores CRLF in
+# `gradlew`, and the Linux CI agent fails it with "bad interpreter: No such file or directory".
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+
+# Never touch binaries.
+*.jar  binary
+*.png  binary
+*.jpg  binary
+*.jks  binary
+*.keystore binary

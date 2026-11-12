@@ -1,0 +1,99 @@
+# Workout Log data
+
+Plain CSV, written by the Workout Log Android app. Safe to sync with Syncthing, Dropbox,
+Nextcloud or anything else that syncs files, and safe to read with pandas / R / Excel.
+
+## Files
+
+| File                   | Contents                                                  |
+|------------------------|-----------------------------------------------------------|
+| `strength-YYYY-MM.csv` | One row per **set**, for that calendar month               |
+| `cardio-YYYY-MM.csv`   | One row per **cardio session**, for that calendar month     |
+| `exercises.csv`        | The exercise catalog that drives the app's autocomplete    |
+
+Data is split by month so that logging a workout only ever rewrites the current month's
+file. That keeps sync conflicts small and localised.
+
+## strength-YYYY-MM.csv
+
+| Column       | Type   | Notes                                                              |
+|--------------|--------|--------------------------------------------------------------------|
+| `id`         | string | Stable row id                                                      |
+| `date`       | date   | `YYYY-MM-DD`, the day the work was done                            |
+| `exercise`   | string | Free text, matched case-insensitively by the app                   |
+| `set_no`     | int    | 1-based set number within that exercise on that day                |
+| `reps`       | int    | Repetitions                                                        |
+| `weight`     | float  | **Added** load. `0` for a pure bodyweight set                      |
+| `unit`       | string | `kg` or `lb` — recorded per row, exactly as entered                |
+| `bodyweight` | bool   | `true` when the movement carries bodyweight (pull-ups, dips, ...)  |
+| `notes`      | string | Free text, newlines stripped                                       |
+| `logged_at`  | int    | Unix epoch millis when the row was saved                           |
+
+A weighted pull-up is `bodyweight=true` with `weight=10`. A barbell squat is
+`bodyweight=false` with `weight=100`. A plain push-up is `bodyweight=true`, `weight=0`.
+
+## cardio-YYYY-MM.csv
+
+| Column         | Type   | Notes                                   |
+|----------------|--------|-----------------------------------------|
+| `id`           | string | Stable row id                           |
+| `date`         | date   | `YYYY-MM-DD`                            |
+| `activity`     | string | Free text, e.g. `Run`, `Cycling`        |
+| `duration_sec` | int    | Session duration in seconds             |
+| `distance`     | float  | `0` when distance was not tracked       |
+| `dist_unit`    | string | `km` or `mi`                            |
+| `notes`        | string | Free text                               |
+| `logged_at`    | int    | Unix epoch millis                       |
+
+## exercises.csv
+
+| Column       | Type   | Notes                                |
+|--------------|--------|--------------------------------------|
+| `name`       | string | Display name                         |
+| `type`       | string | `STRENGTH` or `CARDIO`               |
+| `created_at` | int    | Unix epoch millis of first use       |
+| `last_used`  | date   | Most recent day it appears in a log  |
+| `uses`       | int    | Number of sets / sessions logged     |
+
+This file is a convenience index — it is rebuilt from the log files on every app start,
+so deleting it loses nothing.
+
+`README.md` and `analyze.py` are only written when they are missing, so your edits to them
+survive. Delete either one to have the app drop a fresh copy on next launch.
+
+## Quick start on a laptop
+
+```bash
+pip install pandas
+python analyze.py                          # overall summary
+python analyze.py --exercise "Bench Press" # one lift's full history
+```
+
+Or straight into pandas:
+
+```python
+import glob, pandas as pd
+
+sets = pd.concat([pd.read_csv(f) for f in glob.glob("strength-*.csv")], ignore_index=True)
+sets["date"] = pd.to_datetime(sets["date"])
+
+# estimated 1RM progression for one lift
+bench = sets[sets.exercise.str.lower() == "bench press"].copy()
+bench["e1rm"] = bench.weight * (1 + bench.reps / 30)
+print(bench.groupby("date").e1rm.max())
+
+# weekly tonnage
+sets["volume"] = sets.weight * sets.reps
+print(sets.set_index("date").volume.resample("W-MON").sum())
+```
+
+## Syncing notes
+
+- Point your sync tool at this folder. There is no database and no lock file, so there is
+  nothing to corrupt.
+- If two devices edit the same month while offline, your sync tool will leave a conflict
+  copy (e.g. `strength-2026-11.sync-conflict-....csv`) next to the original. The app
+  ignores files it does not recognise, so nothing breaks — merge the two by hand when
+  convenient.
+- Editing a CSV on your laptop is fine. The app re-reads the folder on resume and with the
+  refresh action, so external edits show up.
