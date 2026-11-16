@@ -20,6 +20,8 @@ data class Settings(
     val bodyweightRepCeiling: Int = 15,
     /** Optional, in kg. Used to make bodyweight-exercise volume comparable. */
     val userBodyweightKg: Double = 0.0,
+    /** Which window the dashboard reports on. */
+    val dashboardPeriod: Period = Period.DEFAULT,
 ) {
     val overloadLabel: String
         get() = when (overloadPeriodDays) {
@@ -50,6 +52,7 @@ class Prefs(context: Context) {
         repMax = sp.getInt(K_REP_MAX, 12),
         bodyweightRepCeiling = sp.getInt(K_BW_CEILING, 15),
         userBodyweightKg = sp.getFloat(K_BODYWEIGHT, 0f).toDouble(),
+        dashboardPeriod = Period.fromName(sp.getString(K_PERIOD_VIEW, null)),
     )
 
     fun update(block: (Settings) -> Settings) {
@@ -64,6 +67,7 @@ class Prefs(context: Context) {
             .putInt(K_REP_MAX, next.repMax)
             .putInt(K_BW_CEILING, next.bodyweightRepCeiling)
             .putFloat(K_BODYWEIGHT, next.userBodyweightKg.toFloat())
+            .putString(K_PERIOD_VIEW, next.dashboardPeriod.name)
             .apply()
         _state.value = next
     }
@@ -78,5 +82,6 @@ class Prefs(context: Context) {
         const val K_REP_MAX = "rep_max"
         const val K_BW_CEILING = "bw_rep_ceiling"
         const val K_BODYWEIGHT = "user_bodyweight_kg"
+        const val K_PERIOD_VIEW = "dashboard_period"
     }
 }

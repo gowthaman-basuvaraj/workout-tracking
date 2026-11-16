@@ -8,6 +8,7 @@ import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.Kind
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Prefs
 import com.gowthaman.workout.data.Repo
 import com.gowthaman.workout.data.Settings
@@ -140,6 +141,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // -------------------------------------------------------------- settings
 
     fun setOverloadPeriod(days: Int) = prefs.update { it.copy(overloadPeriodDays = days) }
+
+    /** Which rolling window the dashboard reports on. Persisted, so it survives restarts. */
+    fun setDashboardPeriod(period: Period) = prefs.update { it.copy(dashboardPeriod = period) }
 
     fun setWeightUnit(unit: String) = prefs.update { it.copy(weightUnit = unit) }
 

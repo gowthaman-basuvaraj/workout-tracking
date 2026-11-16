@@ -2,6 +2,7 @@ package com.gowthaman.workout.logic
 
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
@@ -15,7 +16,16 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-data class WeekBucket(val start: LocalDate, val volume: Double, val sets: Int, val days: Int)
+/** How wide one bar of the volume chart is. */
+enum class BucketUnit { DAY, WEEK, MONTH }
+
+data class Bucket(
+    val start: LocalDate,
+    val unit: BucketUnit,
+    val volume: Double,
+    val sets: Int,
+    val days: Int,
+)
 
 data class PersonalRecord(
     val exercise: String,
@@ -24,39 +34,55 @@ data class PersonalRecord(
     val e1rm: Double?,
 )
 
+/**
+ * Everything the dashboard shows.
+ *
+ * Figures named `...ThisPeriod` cover the selected rolling window; `total...` and the
+ * streak are all-time, and `overloadDue` follows the overload setting rather than the
+ * reporting window.
+ */
 data class Dashboard(
     val hasData: Boolean = false,
-    val trainingDaysThisWeek: Int = 0,
-    val trainingDaysLast30: Int = 0,
+    val period: Period = Period.DEFAULT,
+    val trainingDaysThisPeriod: Int = 0,
     val currentStreakDays: Int = 0,
-    val setsThisWeek: Int = 0,
-    val volumeThisWeek: Double = 0.0,
-    val volumePrevWeek: Double = 0.0,
-    val weeks: List<WeekBucket> = emptyList(),
+    val setsThisPeriod: Int = 0,
+    val volumeThisPeriod: Double = 0.0,
+    val volumePrevPeriod: Double = 0.0,
+    val buckets: List<Bucket> = emptyList(),
     val topExercises: List<Pair<String, Int>> = emptyList(),
     val recentPrs: List<PersonalRecord> = emptyList(),
-    val cardioSessionsThisWeek: Int = 0,
-    val cardioSecThisWeek: Int = 0,
-    val cardioDistanceThisWeek: Double = 0.0,
+    val cardioSessions: Int = 0,
+    val cardioSec: Int = 0,
+    val cardioDistance: Double = 0.0,
     val overloadDue: List<DueItem> = emptyList(),
     val totalTrainingDays: Int = 0,
     val totalSets: Int = 0,
     val exerciseCount: Int = 0,
     val firstDay: LocalDate? = null,
 ) {
-    /** Percentage change in weekly tonnage, null when there is nothing to compare against. */
+    /** Tonnage change against the preceding window of the same length. */
     val volumeTrendPct: Int?
-        get() = if (volumePrevWeek <= 0.0) null
-        else (((volumeThisWeek - volumePrevWeek) / volumePrevWeek) * 100).toInt()
+        get() = if (volumePrevPeriod <= 0.0) null
+        else (((volumeThisPeriod - volumePrevPeriod) / volumePrevPeriod) * 100).toInt()
 }
 
 object Stats {
 
-    private const val WEEKS_SHOWN = 8
-    private const val PR_WINDOW_DAYS = 30L
-
     fun weekStart(date: LocalDate): LocalDate =
         date.minusDays((date.dayOfWeek.value - DayOfWeek.MONDAY.value).toLong())
+
+    /**
+     * Bar width and bar count for each period. Each shape lands between 6 and 12 bars,
+     * which is what stays readable on a phone, and deliberately spans more history than
+     * the headline figures so the chart shows a trend rather than restating them.
+     */
+    fun chartShape(period: Period): Pair<BucketUnit, Int> = when (period) {
+        Period.WEEK -> BucketUnit.DAY to 7
+        Period.MONTH -> BucketUnit.WEEK to 8
+        Period.QUARTER -> BucketUnit.MONTH to 6
+        Period.YEAR -> BucketUnit.MONTH to 12
+    }
 
     fun build(
         strength: List<StrengthSet>,
@@ -64,52 +90,45 @@ object Stats {
         settings: Settings,
         today: LocalDate,
     ): Dashboard {
-        if (strength.isEmpty() && cardio.isEmpty()) return Dashboard()
+        val period = settings.dashboardPeriod
+        if (strength.isEmpty() && cardio.isEmpty()) return Dashboard(period = period)
 
         val unit = settings.weightUnit
         val bw = settings.userBodyweightKg
-        val thisWeek = weekStart(today)
-        val prevWeek = thisWeek.minusWeeks(1)
+
+        // Rolling windows, inclusive of today, so the previous one is always the same length.
+        val windowStart = today.minusDays(period.days - 1L)
+        val prevStart = windowStart.minusDays(period.days.toLong())
 
         val trainedDays = (strength.map { it.date } + cardio.map { it.date }).toSortedSet()
 
-        val thisWeekSets = strength.filter { it.date >= thisWeek }
-        val prevWeekSets = strength.filter { it.date >= prevWeek && it.date < thisWeek }
-        val weekCardio = cardio.filter { it.date >= thisWeek }
-
-        val weeks = (0 until WEEKS_SHOWN).map { back ->
-            val start = thisWeek.minusWeeks((WEEKS_SHOWN - 1 - back).toLong())
-            val end = start.plusWeeks(1)
-            val rows = strength.filter { it.date >= start && it.date < end }
-            WeekBucket(
-                start = start,
-                volume = rows.sumOf { it.volume(unit, bw) },
-                sets = rows.size,
-                days = rows.map { it.date }.distinct().size,
-            )
-        }
+        val periodSets = strength.filter { it.date >= windowStart && it.date <= today }
+        val prevSets = strength.filter { it.date >= prevStart && it.date < windowStart }
+        val periodCardio = cardio.filter { it.date >= windowStart && it.date <= today }
 
         val byExercise = strength.groupBy { catalogKey(it.exercise) }
 
-        val topExercises = byExercise.values
+        // Scoped to the window: "most logged" should answer "lately", not "ever".
+        val topExercises = periodSets
+            .groupBy { catalogKey(it.exercise) }.values
             .map { rows -> rows.first().exercise to rows.size }
             .sortedByDescending { it.second }
             .take(6)
 
         return Dashboard(
             hasData = true,
-            trainingDaysThisWeek = trainedDays.count { it >= thisWeek },
-            trainingDaysLast30 = trainedDays.count { it >= today.minusDays(29) && it <= today },
+            period = period,
+            trainingDaysThisPeriod = trainedDays.count { it >= windowStart && it <= today },
             currentStreakDays = streak(trainedDays, today),
-            setsThisWeek = thisWeekSets.size,
-            volumeThisWeek = thisWeekSets.sumOf { it.volume(unit, bw) },
-            volumePrevWeek = prevWeekSets.sumOf { it.volume(unit, bw) },
-            weeks = weeks,
+            setsThisPeriod = periodSets.size,
+            volumeThisPeriod = periodSets.sumOf { it.volume(unit, bw) },
+            volumePrevPeriod = prevSets.sumOf { it.volume(unit, bw) },
+            buckets = buildBuckets(strength, unit, bw, today, period),
             topExercises = topExercises,
-            recentPrs = recentPrs(byExercise, unit, today),
-            cardioSessionsThisWeek = weekCardio.size,
-            cardioSecThisWeek = weekCardio.sumOf { it.durationSec },
-            cardioDistanceThisWeek = weekCardio.sumOf {
+            recentPrs = recentPrs(byExercise, unit, today, period.days.toLong()),
+            cardioSessions = periodCardio.size,
+            cardioSec = periodCardio.sumOf { it.durationSec },
+            cardioDistance = periodCardio.sumOf {
                 Units.distance(it.distance, it.distUnit, settings.distanceUnit)
             },
             overloadDue = due(byExercise, settings, today),
@@ -118,6 +137,38 @@ object Stats {
             exerciseCount = (byExercise.keys + cardio.map { catalogKey(it.activity) }).size,
             firstDay = trainedDays.firstOrNull(),
         )
+    }
+
+    /** Volume chart bars, oldest first, aligned to whole days / Mondays / 1st-of-month. */
+    private fun buildBuckets(
+        strength: List<StrengthSet>,
+        unit: String,
+        bodyweightKg: Double,
+        today: LocalDate,
+        period: Period,
+    ): List<Bucket> {
+        val (bucketUnit, count) = chartShape(period)
+        return (0 until count).map { index ->
+            val back = (count - 1 - index).toLong()
+            val start = when (bucketUnit) {
+                BucketUnit.DAY -> today.minusDays(back)
+                BucketUnit.WEEK -> weekStart(today).minusWeeks(back)
+                BucketUnit.MONTH -> today.withDayOfMonth(1).minusMonths(back)
+            }
+            val end = when (bucketUnit) {
+                BucketUnit.DAY -> start.plusDays(1)
+                BucketUnit.WEEK -> start.plusWeeks(1)
+                BucketUnit.MONTH -> start.plusMonths(1)
+            }
+            val rows = strength.filter { it.date >= start && it.date < end }
+            Bucket(
+                start = start,
+                unit = bucketUnit,
+                volume = rows.sumOf { it.volume(unit, bodyweightKg) },
+                sets = rows.size,
+                days = rows.map { it.date }.distinct().size,
+            )
+        }
     }
 
     /** Consecutive trained days ending today, or ending yesterday if today is still untouched. */
@@ -135,14 +186,15 @@ object Stats {
         return count
     }
 
-    /** Exercises whose all-time best set landed inside the PR window. */
+    /** Exercises whose all-time best set landed inside the reporting window. */
     private fun recentPrs(
         byExercise: Map<String, List<StrengthSet>>,
         unit: String,
         today: LocalDate,
+        windowDays: Long,
     ): List<PersonalRecord> = byExercise.values.mapNotNull { rows ->
         val best = rows.maxByOrNull { it.score(unit) } ?: return@mapNotNull null
-        if (ChronoUnit.DAYS.between(best.date, today) > PR_WINDOW_DAYS) return@mapNotNull null
+        if (ChronoUnit.DAYS.between(best.date, today) > windowDays) return@mapNotNull null
         // A single-session exercise is a baseline, not a record worth celebrating.
         if (rows.map { it.date }.distinct().size < 2) return@mapNotNull null
         PersonalRecord(

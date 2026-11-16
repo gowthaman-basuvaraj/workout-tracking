@@ -2,6 +2,7 @@ package com.gowthaman.workout.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,8 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDurationLong
+import com.gowthaman.workout.logic.Bucket
+import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.Stats
 import java.time.LocalDate
@@ -40,17 +46,8 @@ fun DashboardScreen(
 ) {
     val data by vm.dashboard.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-
-    if (!data.hasData) {
-        EmptyState(
-            title = "Nothing to show yet",
-            body = "Log a few sessions and this page fills up: weekly volume, streaks, recent " +
-                "records, and which lifts are due for an overload.",
-        )
-        return
-    }
-
     val unit = settings.weightUnit
+    val period = data.period
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -66,6 +63,21 @@ fun DashboardScreen(
         }
 
         item {
+            PeriodSelector(selected = period, onSelect = vm::setDashboardPeriod)
+        }
+
+        if (!data.hasData) {
+            item {
+                EmptyState(
+                    title = "Nothing to show yet",
+                    body = "Log a few sessions and this page fills up: training volume, " +
+                        "streaks, recent records, and which lifts are due for an overload.",
+                )
+            }
+            return@LazyColumn
+        }
+
+        item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(
                     value = data.currentStreakDays.toString(),
@@ -75,9 +87,9 @@ fun DashboardScreen(
                     accent = if (data.currentStreakDays > 0) MaterialTheme.colorScheme.tertiary else null,
                 )
                 StatTile(
-                    value = data.trainingDaysThisWeek.toString(),
-                    label = "days this week",
-                    sub = "${data.trainingDaysLast30} in last 30",
+                    value = data.trainingDaysThisPeriod.toString(),
+                    label = "days trained",
+                    sub = "of the ${period.windowLabel}",
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -86,37 +98,37 @@ fun DashboardScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(
-                    value = data.setsThisWeek.toString(),
-                    label = "sets this week",
+                    value = data.setsThisPeriod.toString(),
+                    label = "sets",
+                    sub = perWeekLabel(data.setsThisPeriod, period),
                     modifier = Modifier.weight(1f),
                 )
                 StatTile(
-                    value = if (data.volumeThisWeek > 0) data.volumeThisWeek.fmt(0) else "—",
-                    label = "volume this week ($unit)",
+                    value = if (data.volumeThisPeriod > 0) data.volumeThisPeriod.fmt(0) else "—",
+                    label = "volume ($unit)",
                     sub = data.volumeTrendPct?.let { pct ->
-                        if (pct >= 0) "+$pct% vs last week" else "$pct% vs last week"
+                        (if (pct >= 0) "+$pct%" else "$pct%") + " vs previous ${period.days}d"
                     },
                     modifier = Modifier.weight(1f),
                 )
             }
         }
 
-        if (data.weeks.any { it.volume > 0 }) {
+        if (data.buckets.any { it.volume > 0 }) {
             item {
-                SectionCard(title = "weekly volume ($unit)") {
+                SectionCard(title = "volume ($unit)") {
                     BarChart(
-                        bars = data.weeks.mapIndexed { i, week ->
+                        bars = data.buckets.mapIndexed { i, bucket ->
                             Bar(
-                                label = week.start.tinyLabel(),
-                                value = week.volume.toFloat(),
-                                highlight = i == data.weeks.lastIndex,
+                                label = bucket.axisLabel(),
+                                value = bucket.volume.toFloat(),
+                                highlight = i == data.buckets.lastIndex,
                             )
                         }
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Last 8 weeks, Monday-start. Bodyweight sets only count once you set " +
-                            "your bodyweight in Settings.",
+                        chartCaption(period),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -160,7 +172,7 @@ fun DashboardScreen(
 
         if (data.recentPrs.isNotEmpty()) {
             item {
-                SectionCard(title = "records in the last 30 days") {
+                SectionCard(title = "records in the ${period.windowLabel}") {
                     data.recentPrs.forEach { pr ->
                         Row(
                             Modifier
@@ -197,13 +209,13 @@ fun DashboardScreen(
             }
         }
 
-        if (data.cardioSessionsThisWeek > 0) {
+        if (data.cardioSessions > 0) {
             item {
-                SectionCard(title = "cardio this week") {
+                SectionCard(title = "cardio · ${period.windowLabel}") {
                     Row {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                data.cardioSessionsThisWeek.toString(),
+                                data.cardioSessions.toString(),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                             Text(
@@ -214,7 +226,7 @@ fun DashboardScreen(
                         }
                         Column(Modifier.weight(1f)) {
                             Text(
-                                formatDurationLong(data.cardioSecThisWeek),
+                                formatDurationLong(data.cardioSec),
                                 style = MaterialTheme.typography.titleLarge,
                             )
                             Text(
@@ -225,8 +237,7 @@ fun DashboardScreen(
                         }
                         Column(Modifier.weight(1f)) {
                             Text(
-                                if (data.cardioDistanceThisWeek > 0)
-                                    data.cardioDistanceThisWeek.fmt(1) else "—",
+                                if (data.cardioDistance > 0) data.cardioDistance.fmt(1) else "—",
                                 style = MaterialTheme.typography.titleLarge,
                             )
                             Text(
@@ -242,7 +253,7 @@ fun DashboardScreen(
 
         if (data.topExercises.isNotEmpty()) {
             item {
-                SectionCard(title = "most logged") {
+                SectionCard(title = "most logged · ${period.windowLabel}") {
                     val max = data.topExercises.maxOf { it.second }
                     data.topExercises.forEach { (name, count) ->
                         Row(
@@ -288,10 +299,60 @@ fun DashboardScreen(
 }
 
 @Composable
+private fun PeriodSelector(selected: Period, onSelect: (Period) -> Unit) {
+    // Scrolls rather than wraps, so a large system font never stacks a chip's label one
+    // letter per line the way a fixed Row does.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Period.entries.forEach { period ->
+            FilterChip(
+                selected = period == selected,
+                onClick = { onSelect(period) },
+                label = { Text(period.label) },
+            )
+        }
+    }
+}
+
+/** Axis text for one bar, which depends on how wide that bar is. */
+private fun Bucket.axisLabel(): String = when (unit) {
+    BucketUnit.DAY -> start.weekdayLabel()
+    BucketUnit.WEEK -> start.tinyLabel()
+    BucketUnit.MONTH -> start.monthLabel()
+}
+
+private fun chartCaption(period: Period): String {
+    val (unit, count) = Stats.chartShape(period)
+    val span = when (unit) {
+        BucketUnit.DAY -> "Last $count days, one bar per day."
+        BucketUnit.WEEK -> "Last $count weeks, Monday-start."
+        BucketUnit.MONTH -> "Last $count calendar months."
+    }
+    return "$span Bodyweight sets only count once you set your bodyweight in Settings."
+}
+
+/** Context for a raw set count: the same number means very different things over a year. */
+private fun perWeekLabel(sets: Int, period: Period): String? {
+    if (sets == 0 || period == Period.WEEK) return null
+    val perWeek = sets * 7.0 / period.days
+    return "~${perWeek.fmt(1)} per week"
+}
+
+@Composable
 private fun TotalsFooter(data: Dashboard) {
     Column(Modifier.padding(top = 8.dp)) {
         HorizontalDivider()
         Spacer(Modifier.height(10.dp))
+        Text(
+            "ALL TIME",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
         Text(
             buildList {
                 add("${data.totalTrainingDays} training days")
@@ -307,7 +368,7 @@ private fun TotalsFooter(data: Dashboard) {
         } ?: 0
         if (weeksTracked > 1) {
             Text(
-                "Averaging ${"%.1f".format(data.totalTrainingDays / weeksTracked.toDouble())} " +
+                "Averaging ${(data.totalTrainingDays / weeksTracked.toDouble()).fmt(1)} " +
                     "sessions per week over $weeksTracked weeks.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

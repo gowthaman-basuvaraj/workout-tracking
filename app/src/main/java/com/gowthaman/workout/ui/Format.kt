@@ -8,6 +8,8 @@ import java.util.Locale
 private val DAY_FULL: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.getDefault())
 private val DAY_SHORT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
 private val DAY_TINY: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+private val WEEKDAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
+private val MONTH_ONLY: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM", Locale.getDefault())
 
 /** "Today" / "Yesterday" / "Tomorrow" when close, an explicit date otherwise. */
 fun LocalDate.relativeLabel(today: LocalDate = LocalDate.now()): String = when (this) {
@@ -22,6 +24,12 @@ fun LocalDate.fullLabel(): String = format(DAY_FULL)
 fun LocalDate.shortLabel(): String = format(DAY_SHORT)
 
 fun LocalDate.tinyLabel(): String = format(DAY_TINY)
+
+/** "Thu" — chart axis for day-wide buckets. */
+fun LocalDate.weekdayLabel(): String = format(WEEKDAY)
+
+/** "Nov" — chart axis for month-wide buckets. */
+fun LocalDate.monthLabel(): String = format(MONTH_ONLY)
 
 /** "today", "3 days ago", "5 weeks ago" — for history lists. */
 fun LocalDate.agoLabel(today: LocalDate = LocalDate.now()): String {

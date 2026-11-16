@@ -4,6 +4,7 @@ import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.Csv
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.StrengthSet
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.fmt
@@ -12,6 +13,7 @@ import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.parseCsv
 import com.gowthaman.workout.data.toSessions
 import com.gowthaman.workout.data.volume
+import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Stats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -199,18 +201,117 @@ class StatsTest {
     }
 
     @Test
-    fun `weekly volume is bucketed into the last eight weeks`() {
+    fun `the default period is a rolling month`() {
+        assertEquals(Period.MONTH, Settings().dashboardPeriod)
+        assertEquals(30, Period.MONTH.days)
+    }
+
+    @Test
+    fun `period figures cover a rolling window and compare to the one before it`() {
         val sets = listOf(
-            set(today, "Squat", 10, 100.0, "a"),              // this week: 1000
-            set(today.minusDays(7), "Squat", 10, 50.0, "b"),  // last week: 500
+            set(today.minusDays(3), "Squat", 10, 100.0, "a"),   // in window:  1000
+            set(today.minusDays(29), "Squat", 10, 50.0, "b"),   // in window:   500
+            set(today.minusDays(31), "Squat", 10, 20.0, "c"),   // previous:    200
         )
         val data = Stats.build(sets, emptyList(), settings, today)
 
-        assertEquals(8, data.weeks.size)
-        assertEquals(1000.0, data.volumeThisWeek, 0.001)
-        assertEquals(500.0, data.volumePrevWeek, 0.001)
-        assertEquals(100, data.volumeTrendPct)
-        assertEquals(1000.0, data.weeks.last().volume, 0.001)
+        assertEquals(1500.0, data.volumeThisPeriod, 0.001)
+        assertEquals(200.0, data.volumePrevPeriod, 0.001)
+        assertEquals(2, data.setsThisPeriod)
+        assertEquals(2, data.trainingDaysThisPeriod)
+    }
+
+    @Test
+    fun `the window is inclusive of exactly period days`() {
+        val onEdge = listOf(set(today.minusDays(29), "Squat", 10, 100.0, "a"))
+        val justOutside = listOf(set(today.minusDays(30), "Squat", 10, 100.0, "a"))
+
+        assertEquals(1, Stats.build(onEdge, emptyList(), settings, today).setsThisPeriod)
+        assertEquals(0, Stats.build(justOutside, emptyList(), settings, today).setsThisPeriod)
+    }
+
+    @Test
+    fun `changing the period changes what is counted`() {
+        val sets = listOf(
+            set(today.minusDays(2), "Squat", 10, 100.0, "a"),
+            set(today.minusDays(60), "Squat", 10, 100.0, "b"),
+            set(today.minusDays(200), "Squat", 10, 100.0, "c"),
+        )
+        fun setsIn(period: Period) = Stats
+            .build(sets, emptyList(), settings.copy(dashboardPeriod = period), today)
+            .setsThisPeriod
+
+        assertEquals(1, setsIn(Period.WEEK))
+        assertEquals(1, setsIn(Period.MONTH))
+        assertEquals(2, setsIn(Period.QUARTER))
+        assertEquals(3, setsIn(Period.YEAR))
+    }
+
+    @Test
+    fun `each period gets a chart shape that stays readable`() {
+        assertEquals(BucketUnit.DAY to 7, Stats.chartShape(Period.WEEK))
+        assertEquals(BucketUnit.WEEK to 8, Stats.chartShape(Period.MONTH))
+        assertEquals(BucketUnit.MONTH to 6, Stats.chartShape(Period.QUARTER))
+        assertEquals(BucketUnit.MONTH to 12, Stats.chartShape(Period.YEAR))
+    }
+
+    @Test
+    fun `month buckets are whole weeks, oldest first`() {
+        val sets = listOf(
+            set(today, "Squat", 10, 100.0, "a"),              // this week: 1000
+            set(today.minusDays(7), "Squat", 10, 50.0, "b"),  // last week:  500
+        )
+        val data = Stats.build(sets, emptyList(), settings, today)
+
+        assertEquals(8, data.buckets.size)
+        assertEquals(BucketUnit.WEEK, data.buckets.first().unit)
+        assertEquals(1000.0, data.buckets.last().volume, 0.001)
+        assertEquals(500.0, data.buckets[data.buckets.lastIndex - 1].volume, 0.001)
+        assertTrue(data.buckets.zipWithNext().all { (a, b) -> a.start < b.start })
+        assertTrue(data.buckets.all { it.start == Stats.weekStart(it.start) })
+    }
+
+    @Test
+    fun `week buckets are seven days ending today`() {
+        val sets = listOf(set(today, "Squat", 10, 100.0, "a"))
+        val data = Stats.build(
+            sets, emptyList(), settings.copy(dashboardPeriod = Period.WEEK), today
+        )
+
+        assertEquals(7, data.buckets.size)
+        assertEquals(BucketUnit.DAY, data.buckets.first().unit)
+        assertEquals(today, data.buckets.last().start)
+        assertEquals(today.minusDays(6), data.buckets.first().start)
+        assertEquals(1000.0, data.buckets.last().volume, 0.001)
+    }
+
+    @Test
+    fun `year buckets are whole calendar months`() {
+        val sets = listOf(set(today, "Squat", 10, 100.0, "a"))
+        val data = Stats.build(
+            sets, emptyList(), settings.copy(dashboardPeriod = Period.YEAR), today
+        )
+
+        assertEquals(12, data.buckets.size)
+        assertEquals(BucketUnit.MONTH, data.buckets.first().unit)
+        assertTrue(data.buckets.all { it.start.dayOfMonth == 1 })
+        assertEquals(today.withDayOfMonth(1), data.buckets.last().start)
+    }
+
+    @Test
+    fun `most logged is scoped to the selected window`() {
+        val sets = listOf(
+            set(today.minusDays(2), "Squat", 10, 100.0, "a"),
+            set(today.minusDays(200), "Bench", 10, 100.0, "b"),
+            set(today.minusDays(201), "Bench", 10, 100.0, "c"),
+        )
+        val month = Stats.build(sets, emptyList(), settings, today)
+        val year = Stats.build(
+            sets, emptyList(), settings.copy(dashboardPeriod = Period.YEAR), today
+        )
+
+        assertEquals(listOf("Squat"), month.topExercises.map { it.first })
+        assertEquals(listOf("Bench", "Squat"), year.topExercises.map { it.first })
     }
 
     @Test
@@ -248,6 +349,20 @@ class StatsTest {
     }
 
     @Test
+    fun `the records window follows the selected period`() {
+        val sets = listOf(
+            set(today.minusDays(300), "Squat", 10, 100.0, "a"),
+            set(today.minusDays(50), "Squat", 10, 110.0, "b"),  // best, but 50 days back
+        )
+        fun prs(period: Period) = Stats
+            .build(sets, emptyList(), settings.copy(dashboardPeriod = period), today)
+            .recentPrs
+
+        assertTrue("50 days is outside a 30-day window", prs(Period.MONTH).isEmpty())
+        assertEquals(1, prs(Period.QUARTER).size)
+    }
+
+    @Test
     fun `cardio totals convert into the chosen unit`() {
         val miles = settings.copy(distanceUnit = Units.MI)
         val cardio = listOf(
@@ -255,8 +370,8 @@ class StatsTest {
         )
         val data = Stats.build(emptyList(), cardio, miles, today)
 
-        assertEquals(1, data.cardioSessionsThisWeek)
-        assertEquals(1800, data.cardioSecThisWeek)
-        assertEquals(6.21, data.cardioDistanceThisWeek, 0.01)
+        assertEquals(1, data.cardioSessions)
+        assertEquals(1800, data.cardioSec)
+        assertEquals(6.21, data.cardioDistance, 0.01)
     }
 }

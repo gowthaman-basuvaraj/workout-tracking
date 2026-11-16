@@ -38,9 +38,19 @@ not quietly reset your progression.
 to see every session, your best set, estimated 1RM trend, and what is due next. Tap a
 session to jump to that day. Exercises can be renamed (history is rewritten with them).
 
-**Dashboard.** Streak, days trained, weekly sets and tonnage with a trend, an 8-week volume
-chart, which lifts are **due for an overload**, records set in the last 30 days, cardio
-totals, and most-logged exercises.
+**Dashboard.** Pick a reporting window — **week, month (the default), quarter or year** —
+and the whole page re-scopes to it: days trained, sets, tonnage against the previous window
+of the same length, records, cardio totals and most-logged exercises. The choice is
+remembered between launches.
+
+Windows are rolling ("the last 30 days"), not calendar-aligned, so the comparison against
+the previous window is always like-for-like and the page never looks empty on the 1st of
+the month. The volume chart re-buckets to stay readable — 7 daily bars for a week, 8 weekly
+bars for a month, 6 monthly bars for a quarter, 12 for a year.
+
+Three things deliberately ignore the window: the streak and the all-time footer are
+absolute, and the **due for an overload** list follows your overload frequency setting
+instead.
 
 **Cardio.** Activity name, duration and optional distance, with a built-in stopwatch that
 fills the duration in when you stop it. Pace is computed for you.
@@ -165,7 +175,7 @@ app/src/main/java/com/gowthaman/workout/
     Overload.kt            the progression engine
     Stats.kt               dashboard aggregates
   ui/                      Compose screens: Day, Log, Exercises, detail, Dashboard, Settings
-app/src/test/              41 unit tests, mostly on Overload
+app/src/test/              50 unit tests, mostly on Overload and Stats
 ```
 
 Design notes worth knowing if you change things:

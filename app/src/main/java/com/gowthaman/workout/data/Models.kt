@@ -7,6 +7,30 @@ import kotlin.math.roundToInt
 
 enum class Kind { STRENGTH, CARDIO }
 
+/**
+ * Reporting window for the dashboard.
+ *
+ * Windows are rolling rather than calendar-aligned: "last 30 days" always has a
+ * comparable "previous 30 days" next to it, and it never shows a near-empty month on
+ * the 1st.
+ */
+enum class Period(val days: Int, val label: String) {
+    WEEK(7, "Week"),
+    MONTH(30, "Month"),
+    QUARTER(90, "Quarter"),
+    YEAR(365, "Year");
+
+    /** "last 30 days" — for prose, where the raw day count is clearer than the name. */
+    val windowLabel: String get() = "last $days days"
+
+    companion object {
+        val DEFAULT = MONTH
+
+        fun fromName(name: String?): Period =
+            entries.firstOrNull { it.name == name } ?: DEFAULT
+    }
+}
+
 /** Weight units. Stored per row so historical data stays exactly as it was entered. */
 object Units {
     const val KG = "kg"
