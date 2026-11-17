@@ -40,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.ui.theme.NumberStyle
 
 /**
@@ -96,6 +98,33 @@ fun scalePillColors(scale: FoodScale): Pair<Color, Color> = when (scale) {
         MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     FoodScale.INDULGENT ->
         MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+}
+
+/** Same three-step treatment as the food scale: teal, grey, blue. Never red. */
+@Composable
+fun qualityAccent(quality: SleepQuality): Color = when (quality) {
+    SleepQuality.GOOD -> MaterialTheme.colorScheme.tertiary
+    SleepQuality.OK -> MaterialTheme.colorScheme.outline
+    SleepQuality.POOR -> MaterialTheme.colorScheme.primary
+}
+
+@Composable
+fun qualityPillColors(quality: SleepQuality): Pair<Color, Color> = when (quality) {
+    SleepQuality.GOOD ->
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    SleepQuality.OK ->
+        MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    SleepQuality.POOR ->
+        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+}
+
+/** Busters read as the calmer colour; neither direction is "bad". */
+@Composable
+fun directionPillColors(direction: StressDirection): Pair<Color, Color> = when (direction) {
+    StressDirection.BUSTER ->
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    StressDirection.ENHANCER ->
+        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
 }
 
 @Composable

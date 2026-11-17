@@ -51,6 +51,9 @@ import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.StressEvent
+import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.StrengthSet
@@ -128,6 +131,12 @@ fun DayScreen(
                                     FilledTonalButton(onClick = { onLog(Kind.FOOD, null) }) {
                                         Text("Food", maxLines = 1)
                                     }
+                                    FilledTonalButton(onClick = { onLog(Kind.SLEEP, null) }) {
+                                        Text("Sleep", maxLines = 1)
+                                    }
+                                    FilledTonalButton(onClick = { onLog(Kind.STRESS, null) }) {
+                                        Text("Stress", maxLines = 1)
+                                    }
                                 }
                             },
                         )
@@ -154,6 +163,27 @@ fun DayScreen(
                         onDeleteSet = vm::deleteSet,
                         onDeleteAll = { confirmDelete = session },
                     )
+                }
+
+                day.sleep?.let { night ->
+                    item {
+                        SleepRow(night = night, onDelete = { vm.deleteSleep(night.id) })
+                    }
+                }
+
+                if (day.stress.isNotEmpty()) {
+                    item {
+                        Text(
+                            "STRESS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp, top = 4.dp),
+                        )
+                    }
+                }
+
+                items(day.stress, key = { it.id }) { event ->
+                    StressRow(event = event, onDelete = { vm.deleteStress(event.id) })
                 }
 
                 if (day.food.isNotEmpty()) {
@@ -367,6 +397,65 @@ private fun SetRow(set: StrengthSet, unit: String, onDelete: () -> Unit) {
             )
         }
         SmallIconButton(Icons.Filled.Clear, "Delete set", onClick = onDelete)
+    }
+}
+
+/** Last night, shown first: it sets the tone for everything else on the day. */
+@Composable
+private fun SleepRow(night: SleepNight, onDelete: () -> Unit) {
+    SectionCard(title = "slept") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    formatSleep(night.durationMin),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+                val (container, content) = qualityPillColors(night.quality)
+                Pill(night.quality.label, container = container, content = content)
+                if (night.notes.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        night.notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            SmallIconButton(Icons.Filled.Clear, "Delete sleep", onClick = onDelete)
+        }
+    }
+}
+
+@Composable
+private fun StressRow(event: StressEvent, onDelete: () -> Unit) {
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    event.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val (container, content) = directionPillColors(event.direction)
+                    Pill(event.direction.label, container = container, content = content)
+                    Spacer(Modifier.width(6.dp))
+                    Pill(event.weight.label)
+                }
+                if (event.notes.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        event.notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            SmallIconButton(Icons.Filled.Clear, "Delete event", onClick = onDelete)
+        }
     }
 }
 

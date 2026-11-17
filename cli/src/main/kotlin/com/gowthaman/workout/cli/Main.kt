@@ -7,7 +7,14 @@ import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.SleepQuality
 import com.gowthaman.workout.data.StrengthSet
+import com.gowthaman.workout.data.StressDirection
+import com.gowthaman.workout.data.StressEvent
+import com.gowthaman.workout.data.StressWeight
+import com.gowthaman.workout.data.formatSleep
+import com.gowthaman.workout.data.parseSleepDuration
 import com.gowthaman.workout.data.CsvFormat as Fmt
 import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
@@ -61,6 +68,8 @@ private fun run(raw: List<String>) {
         "food" -> { args.takeCommand(); return logFood(args, explicit = true) }
         "set", "lift" -> { args.takeCommand(); return logSet(args) }
         "cardio" -> { args.takeCommand(); return logCardio(args) }
+        "sleep" -> { args.takeCommand(); return logSleep(args) }
+        "stress" -> { args.takeCommand(); return logStress(args) }
     }
 
     if (first == null) {
@@ -345,6 +354,103 @@ private fun logCardio(args: Args) {
     println("logged  $summary" + onDate(entry.date))
 }
 
+// ---------------------------------------------------------------------- sleep
+
+private fun logSleep(args: Args) {
+    args.rejectUnknown(setOf("note") + SleepQuality.entries.map { it.name.lowercase() })
+    val folder = resolveFolder(args)
+    val spoken = args.positional.joinToString("").trim()
+    if (spoken.isEmpty()) {
+        throw UserError("How long did you sleep?", "jotter sleep 7h30 --ok")
+    }
+
+    val minutes = parseSleepDuration(spoken)
+        ?: throw UserError(
+            "Could not read \"$spoken\" as a duration.",
+            "7h30, 7:30, 7.5 and 450m all work.",
+        )
+
+    // A night belongs to the morning you woke up, so the default is today.
+    val date = args.date()
+    val quality = SleepQuality.entries.firstOrNull { args.has(it.name.lowercase()) }
+        ?: SleepQuality.DEFAULT
+    val existing = folder.sleepOn(date)
+
+    val night = SleepNight(
+        id = existing?.id ?: Fmt.newId(),
+        date = date,
+        durationMin = minutes,
+        quality = quality,
+        notes = args.value("note").orEmpty(),
+        loggedAt = System.currentTimeMillis(),
+    )
+
+    if (args.has("dry-run")) {
+        println("would log: ${formatSleep(minutes)} / ${quality.label}  for ${date.shortLabel()}")
+        return
+    }
+    folder.putSleep(night)
+    rememberForUndo("sleep", night.id)
+    println("logged  ${formatSleep(minutes)} / ${quality.label}  night before ${date.shortLabel()}")
+    if (existing != null) {
+        println("        replaced ${formatSleep(existing.durationMin)} / ${existing.quality.label}")
+    }
+    if (minutes < 6 * 60) println("        under 6h")
+}
+
+// --------------------------------------------------------------------- stress
+
+private fun logStress(args: Args) {
+    args.rejectUnknown(
+        setOf("note", "new") + StressDirection.entries.map { it.name.lowercase() } +
+            StressWeight.entries.map { it.name.lowercase() },
+    )
+    val folder = resolveFolder(args)
+    val query = args.positional.joinToString(" ").trim()
+    if (query.isEmpty()) {
+        throw UserError("What happened?", "jotter stress deadline    ·    jotter ls stress")
+    }
+
+    val names = folder.stressCatalog.map { it.name }
+    val label = resolveOrFail(names, query, "stress", args)
+    val known = folder.stressCatalog.firstOrNull { catalogKey(it.name) == catalogKey(label) }
+
+    val direction = StressDirection.entries.firstOrNull { args.has(it.name.lowercase()) }
+        ?: known?.direction
+        ?: StressDirection.DEFAULT
+    val weight = StressWeight.entries.firstOrNull { args.has(it.name.lowercase()) }
+        ?: known?.weight
+        ?: StressWeight.DEFAULT
+
+    val event = StressEvent(
+        id = Fmt.newId(),
+        date = args.date(),
+        label = label,
+        direction = direction,
+        weight = weight,
+        notes = args.value("note").orEmpty(),
+        loggedAt = System.currentTimeMillis(),
+    )
+
+    val summary = "$label  -  ${direction.label} / ${weight.label}"
+    if (args.has("dry-run")) {
+        println("would log: $summary" + onDate(event.date))
+        return
+    }
+    folder.appendStress(event)
+    rememberForUndo("stress", event.id)
+    println("logged  $summary" + onDate(event.date))
+    if (known == null) println("        new - this is now its default")
+
+    if (direction == StressDirection.BUSTER) {
+        val days = folder.stress
+            .filter { it.direction == StressDirection.BUSTER && it.date > event.date.minusDays(30) }
+            .map { it.date }.toMutableSet()
+        days += event.date
+        println("        busters on ${days.size} of the last 30 days")
+    }
+}
+
 // ----------------------------------------------------------------------- undo
 
 private fun rememberForUndo(kind: String, ids: String) =
@@ -363,6 +469,10 @@ private fun undo(args: Args) {
         "strength" -> ids.mapNotNull { folder.removeStrength(it) }
             .map { "${it.exercise} ${it.reps} x ${it.loadLabel(it.unit)}" }
         "cardio" -> ids.mapNotNull { folder.removeCardio(it) }.map { it.activity }
+        "sleep" -> ids.mapNotNull { folder.removeSleep(it) }
+            .map { "${formatSleep(it.durationMin)} on ${it.date.shortLabel()}" }
+        "stress" -> ids.mapNotNull { folder.removeStress(it) }
+            .map { "${it.label} (${it.direction.label})" }
         else -> emptyList()
     }
     if (removed.isEmpty()) {
@@ -382,8 +492,12 @@ private fun list(args: Args) {
     val showFood = what == null || what in setOf("food", "foods")
     val showStrength = what == null || what in setOf("strength", "lift", "lifts", "exercise", "exercises")
     val showCardio = what == null || what in setOf("cardio")
-    if (!showFood && !showStrength && !showCardio) {
-        throw UserError("Unknown list \"$what\".", "jotter ls [food|strength|cardio] [filter]")
+    val showStress = what == null || what in setOf("stress")
+    if (!showFood && !showStrength && !showCardio && !showStress) {
+        throw UserError(
+            "Unknown list \"$what\".",
+            "jotter ls [food|strength|cardio|stress] [filter]",
+        )
     }
 
     if (showFood) {
@@ -393,6 +507,16 @@ private fun list(args: Args) {
                 .thenBy { catalogKey(it.name) })
         section("FOOD", rows.map {
             Triple(it.name, "${it.purpose.label} / ${it.scale.label}", summaryOf(it.useCount, "logged", it.lastUsed))
+        })
+    }
+    if (showStress) {
+        val rows = folder.stressCatalog
+            .filter { filter == null || it.name.contains(filter, ignoreCase = true) }
+            .sortedWith(compareByDescending<com.gowthaman.workout.data.StressDef> { it.lastUsed }
+                .thenBy { catalogKey(it.name) })
+        section("STRESS", rows.map {
+            Triple(it.name, "${it.direction.label} / ${it.weight.label}",
+                summaryOf(it.useCount, "logged", it.lastUsed))
         })
     }
     if (showStrength || showCardio) {
@@ -437,11 +561,25 @@ private fun showDay(args: Args) {
     } ?: args.date()
 
     val (sets, cardio, food) = folder.entriesOn(date)
+    val night = folder.sleepOn(date)
+    val events = folder.stress.filter { it.date == date }
     println("${date.shortLabel()}  (${date.agoLabel()})")
     println()
-    if (sets.isEmpty() && cardio.isEmpty() && food.isEmpty()) {
+    if (sets.isEmpty() && cardio.isEmpty() && food.isEmpty() && night == null && events.isEmpty()) {
         println("  nothing logged")
         return
+    }
+    night?.let {
+        println("  SLEPT")
+        println("    ${formatSleep(it.durationMin)} / ${it.quality.label}")
+        println()
+    }
+    if (events.isNotEmpty()) {
+        println("  STRESS")
+        events.forEach {
+            println("    ${it.label.padEnd(22)} ${it.direction.label} / ${it.weight.label}")
+        }
+        println()
     }
     if (sets.isNotEmpty()) {
         println("  TRAINING")
@@ -567,6 +705,8 @@ private fun help(topic: String?) {
         "food" -> println(HELP_FOOD)
         "set", "lift" -> println(HELP_SET)
         "cardio" -> println(HELP_CARDIO)
+        "sleep" -> println(HELP_SLEEP)
+        "stress" -> println(HELP_STRESS)
         "ls", "list" -> println(HELP_LS)
         null -> println(HELP_MAIN)
         else -> throw UserError("No help for \"$topic\".", "Try: jotter help")
@@ -585,6 +725,8 @@ USAGE
   jotter food <name> [opts]    the same, said explicitly
   jotter set <ex> <reps>x<wt>  log a strength set
   jotter cardio <act> [opts]   log a cardio session
+  jotter sleep <duration>      log last night
+  jotter stress <thing>        log something that wound you up or down
   jotter ls [what] [filter]    see what names exist
   jotter today [date]          show a day
   jotter due                   which lifts are due for an overload
@@ -673,6 +815,47 @@ OPTIONS
 EXAMPLES
   jotter cardio run --time 32 --dist 5.4
   jotter cardio cycling --time 45
+""".trimIndent()
+
+private val HELP_SLEEP = """
+jotter sleep <duration> [options]       log a night
+
+  A night is filed under the morning you woke up, so logging in the morning needs
+  no date at all. 7h30, 7:30, 7.5 and 450m are all understood.
+
+  One night per day: logging again replaces it rather than adding a second.
+
+OPTIONS
+  --poor --ok --good   how it was (default ok)
+  --note <text>        a note
+  --yesterday          file it against yesterday instead
+
+EXAMPLES
+  jotter sleep 7h30
+  jotter sleep 6:15 --poor --note "woken at 3"
+  jotter sleep 8h --good
+""".trimIndent()
+
+private val HELP_STRESS = """
+jotter stress <thing> [options]         log a stress event
+
+  Direction and weight are remembered per item, so a repeat is just the name:
+  a deadline is always an enhancer, a walk is always a buster.
+
+  There is no stress score anywhere, and no enhancer-to-buster ratio. You log
+  stressors when you are least able to log anything, so a ratio would claim a
+  precision the data has not got. Counts only.
+
+OPTIONS
+  --enhancer --buster      which way it pushed
+  --minor --notable --major    how much it counted
+  --note <text>            a note
+  --new                    allow a name not in the catalog yet
+
+EXAMPLES
+  jotter stress deadline
+  jotter stress walk
+  jotter stress "review meeting" --new --enhancer --major
 """.trimIndent()
 
 private val HELP_LS = """

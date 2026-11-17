@@ -11,6 +11,12 @@ import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StressDef
+import com.gowthaman.workout.data.StressDirection
+import com.gowthaman.workout.data.StressEvent
+import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Prefs
@@ -37,11 +43,15 @@ data class DayView(
     val strength: List<ExerciseSession> = emptyList(),
     val cardio: List<CardioEntry> = emptyList(),
     val food: List<FoodEntry> = emptyList(),
+    val sleep: SleepNight? = null,
+    val stress: List<StressEvent> = emptyList(),
     val totalSets: Int = 0,
     val totalReps: Int = 0,
     val volume: Double = 0.0,
 ) {
-    val isEmpty: Boolean get() = strength.isEmpty() && cardio.isEmpty() && food.isEmpty()
+    val isEmpty: Boolean
+        get() = strength.isEmpty() && cardio.isEmpty() && food.isEmpty() &&
+            sleep == null && stress.isEmpty()
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -57,14 +67,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val catalog: StateFlow<List<ExerciseDef>> = repo.catalog
     val food: StateFlow<List<FoodEntry>> = repo.food
     val foodCatalog: StateFlow<List<FoodDef>> = repo.foodCatalog
+    val sleep: StateFlow<List<SleepNight>> = repo.sleep
+    val stress: StateFlow<List<StressEvent>> = repo.stress
+    val stressCatalog: StateFlow<List<StressDef>> = repo.stressCatalog
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     val day: StateFlow<DayView> =
         combine(
-            repo.strength, repo.cardio, repo.food, _selectedDate, prefs.state
-        ) { sets, cardio, food, date, cfg ->
+            repo.strength, repo.cardio, repo.food, repo.sleep, repo.stress,
+            _selectedDate, prefs.state,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val sets = values[0] as List<StrengthSet>
+            @Suppress("UNCHECKED_CAST")
+            val cardio = values[1] as List<CardioEntry>
+            @Suppress("UNCHECKED_CAST")
+            val food = values[2] as List<FoodEntry>
+            @Suppress("UNCHECKED_CAST")
+            val sleep = values[3] as List<SleepNight>
+            @Suppress("UNCHECKED_CAST")
+            val stress = values[4] as List<StressEvent>
+            val date = values[5] as LocalDate
+            val cfg = values[6] as Settings
             val forDay = sets.filter { it.date == date }
             DayView(
                 date = date,
@@ -77,6 +103,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     .sortedByDescending { session -> session.sets.maxOf { it.loggedAt } },
                 cardio = cardio.filter { it.date == date }.sortedBy { it.loggedAt },
                 food = food.filter { it.date == date }.sortedBy { it.loggedAt },
+                sleep = sleep.firstOrNull { it.date == date },
+                stress = stress.filter { it.date == date }.sortedBy { it.loggedAt },
                 totalSets = forDay.size,
                 totalReps = forDay.sumOf { it.reps },
                 volume = forDay.sumOf { it.volume(cfg.weightUnit, cfg.userBodyweightKg) },
@@ -84,8 +112,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }.stateIn(viewModelScope, SharingStarted.Eagerly, DayView(LocalDate.now()))
 
     val dashboard: StateFlow<Dashboard> =
-        combine(repo.strength, repo.cardio, repo.food, prefs.state) { sets, cardio, food, cfg ->
-            Stats.build(sets, cardio, cfg, LocalDate.now(), food)
+        combine(
+            repo.strength, repo.cardio, repo.food, repo.sleep, repo.stress, prefs.state,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            Stats.build(
+                strength = values[0] as List<StrengthSet>,
+                cardio = values[1] as List<CardioEntry>,
+                settings = values[5] as Settings,
+                today = LocalDate.now(),
+                food = values[2] as List<FoodEntry>,
+                sleep = values[3] as List<SleepNight>,
+                stress = values[4] as List<StressEvent>,
+            )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, Dashboard())
 
     // ------------------------------------------------------------- navigation
@@ -158,6 +197,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addFoodName(name: String, purpose: Purpose, scale: FoodScale) =
         repo.addFoodName(name, purpose, scale)
+
+    fun addSleep(date: LocalDate, durationMin: Int, quality: SleepQuality, notes: String = "") =
+        repo.addSleep(date, durationMin, quality, notes)
+
+    fun deleteSleep(id: String) = repo.deleteSleep(id)
+
+    fun addStress(
+        date: LocalDate,
+        label: String,
+        direction: StressDirection,
+        weight: StressWeight,
+        notes: String = "",
+    ) = repo.addStress(date, label, direction, weight, notes)
+
+    fun deleteStress(id: String) = repo.deleteStress(id)
+
+    fun addStressName(name: String, direction: StressDirection, weight: StressWeight) =
+        repo.addStressName(name, direction, weight)
+
+    fun renameStress(from: String, to: String) = repo.renameStress(from, to)
+
+    fun deleteStressName(name: String, alsoDeleteHistory: Boolean) =
+        repo.deleteStressName(name, alsoDeleteHistory)
 
     fun renameFood(from: String, to: String) = repo.renameFood(from, to)
 

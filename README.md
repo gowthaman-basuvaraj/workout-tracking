@@ -59,6 +59,22 @@ instead.
 **Cardio.** Activity name, duration and optional distance, with a built-in stopwatch that
 fills the duration in when you stop it. Pace is computed for you.
 
+**Sleep.** Duration and a three-point quality. A night is filed under the **morning you
+woke up**, so logging in the morning needs no date. One night per day — logging again
+replaces it. The dashboard reports the average *next to how many nights it came from*,
+because an average over 11 logged nights in a month is a different claim from 29, plus
+nights under 6h and the quality mix. No sleep score, deliberately.
+
+**Stress — events, not a mood scale.** Name the thing that wound you up or down, and how
+much it counted (minor / notable / major). Direction and weight are remembered per item,
+so a deadline is always an enhancer and a walk is always a buster: repeats are one tap.
+
+The dashboard leads with **busters you reached for**, and on how many days — "14 deadline
+events" tells you work is stressful, which you knew, whereas what you reached for is the
+part you control. There is no enhancer-to-buster ratio anywhere: you log stressors when
+you are least able to log anything, so that number would claim a precision the data has
+not got.
+
 **Food — a log, not a calorie counter.** What you had, what it was for (breakfast, lunch,
 dinner, snack, drink) and where it sat on a three-point scale: healthy, everyday,
 indulgent. That is the whole schema. There are no calories, macros, portion weights, food
@@ -87,6 +103,9 @@ your-folder/
   strength-2026-11.csv    one row per set
   cardio-2026-11.csv      one row per cardio session
   food-2026-11.csv        one row per food/drink logged
+  sleep-2026-11.csv       one row per night, filed under the wake date
+  stress-2026-11.csv      one row per stress event
+  stress.csv              the stress catalog, with each item's usual direction
   exercises.csv           the picker's catalog (rebuilt from the logs, safe to delete)
   foods.csv               the food catalog, with each item's usual purpose and rating
   settings.csv            a read-only copy of the app's settings, for desktop tools
@@ -114,6 +133,8 @@ pip install pandas
 python analyze.py                           # overall summary
 python analyze.py --exercise "Bench Press"  # one lift's full history
 python analyze.py --food                    # the food log on its own
+python analyze.py --sleep                   # nights, coverage, quality mix
+python analyze.py --stress                  # what came up, what you reached for
 ```
 
 Or straight into pandas:
@@ -143,6 +164,8 @@ jotter coffee                      # purpose and rating come from the catalog
 jotter biscuits -n 2 --indulgent   # override either of them
 jotter set bench 10x42.5 --sets 3  # weight unit inferred from your last weighted set
 jotter cardio run --time 31 --dist 5.3
+jotter sleep 7h30 --ok             # 7h30, 7:30, 7.5 and 450m all parse
+jotter stress deadline             # direction and weight remembered per item
 jotter ls food cof                 # what names exist
 jotter today                       # what is logged
 jotter undo                        # remove what you just logged
@@ -235,6 +258,8 @@ core/     pure JVM — shared by :app and :cli
   data/
     Models.kt       StrengthSet, CardioEntry, sessions, units, formatting
     Food.kt         FoodEntry, purpose, the healthy-to-indulgent scale
+    Sleep.kt        SleepNight, quality, duration parsing
+    Stress.kt       StressEvent, enhancer/buster, minor-to-major
     Settings.kt     preferences as a plain value type
     Csv.kt          CSV reader/writer, header-addressed rows
     CsvFormat.kt    file names, headers, row <-> text, settings. The format, no I/O
@@ -243,7 +268,7 @@ core/     pure JVM — shared by :app and :cli
   logic/
     Overload.kt     the progression engine
     Stats.kt        dashboard aggregates
-  85 unit tests
+  107 unit tests
 
 app/      Android
   data/CsvStore.kt  folder I/O through the Storage Access Framework

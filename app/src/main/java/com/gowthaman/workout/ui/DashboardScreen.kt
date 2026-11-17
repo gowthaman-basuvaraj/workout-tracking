@@ -36,6 +36,8 @@ import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.tinyLabel
 import com.gowthaman.workout.data.weekdayLabel
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDurationLong
@@ -299,6 +301,14 @@ fun DashboardScreen(
             }
         }
 
+        if (data.hasSleep) {
+            item { SleepCard(data = data) }
+        }
+
+        if (data.hasStress) {
+            item { StressCard(data = data) }
+        }
+
         if (data.hasFood) {
             item { FoodCard(data = data) }
             item { TopFoodsCard(data = data) }
@@ -352,6 +362,200 @@ private fun perWeekLabel(sets: Int, period: Period): String? {
     if (sets == 0 || period == Period.WEEK) return null
     val perWeek = sets * 7.0 / period.days
     return "~${perWeek.fmt(1)} per week"
+}
+
+/**
+ * Sleep as it was, not as a score.
+ *
+ * Coverage is stated next to the average on purpose: an average over 11 logged nights in
+ * a 30-day window is a different claim from an average over 29, and hiding that would be
+ * the most misleading number on the page.
+ */
+@Composable
+private fun SleepCard(data: Dashboard) {
+    SectionCard(title = "sleep · ${data.period.windowLabel}") {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                formatSleep(data.sleepAvgMin),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "average over ${data.nightsLogged} night${if (data.nightsLogged == 1) "" else "s"} logged",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+
+        if (data.sleepBuckets.any { it.volume > 0 }) {
+            Spacer(Modifier.height(12.dp))
+            BarChart(
+                bars = data.sleepBuckets.mapIndexed { i, bucket ->
+                    Bar(
+                        label = bucket.axisLabel(),
+                        value = (bucket.volume / 60.0).toFloat(),
+                        highlight = i == data.sleepBuckets.lastIndex,
+                    )
+                }
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Average hours per night in each bar; empty where nothing was logged.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        QualityMixBar(mix = data.sleepQualityMix, total = data.nightsLogged)
+
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    data.shortNights.toString(),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    "nights under 6h",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${data.nightsLogged} / ${data.period.days}",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    "nights logged",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QualityMixBar(mix: List<Pair<SleepQuality, Int>>, total: Int) {
+    if (total <= 0) return
+    val shown = mix.filter { it.second > 0 }
+    if (shown.isEmpty()) return
+
+    val percents = shown.mapIndexed { i, (_, count) ->
+        if (i < shown.lastIndex) (count * 100.0 / total).roundToInt() else -1
+    }.toMutableList()
+    percents[percents.lastIndex] = 100 - percents.dropLast(1).sum()
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(RoundedCornerShape(5.dp))
+    ) {
+        shown.forEach { (quality, count) ->
+            Box(
+                Modifier
+                    .weight(count.toFloat())
+                    .fillMaxHeight()
+                    .background(qualityAccent(quality))
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        shown.forEachIndexed { i, (quality, _) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .width(8.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(qualityAccent(quality))
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "${quality.label} ${percents[i]}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Busters first, deliberately.
+ *
+ * "14 deadline events" tells you work is stressful, which you knew. What you reached for,
+ * and whether you reached for anything, is the part you actually control — so it leads,
+ * and there is no enhancer-to-buster ratio anywhere: you log stressors when you are least
+ * able to log, so that number would claim a precision the data has not got.
+ */
+@Composable
+private fun StressCard(data: Dashboard) {
+    SectionCard(title = "stress · ${data.period.windowLabel}") {
+        Text(
+            "BUSTERS YOU REACHED FOR",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(6.dp))
+        if (data.busters.isEmpty()) {
+            Text(
+                "Nothing logged on that side yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            data.busters.forEach { TallyRow(it) }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "on ${data.daysWithBuster} of the last ${data.period.days} days",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (data.enhancers.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "WHAT CAME UP",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            data.enhancers.forEach { TallyRow(it) }
+        }
+    }
+}
+
+@Composable
+private fun TallyRow(tally: com.gowthaman.workout.logic.StressTally) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            tally.name,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (tally.major > 0) {
+            Text(
+                "${tally.major} major",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(10.dp))
+        }
+        NumberText(tally.count.toString())
+    }
 }
 
 /**

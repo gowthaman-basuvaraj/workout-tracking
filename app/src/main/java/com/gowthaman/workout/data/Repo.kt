@@ -55,9 +55,19 @@ class Repo(context: Context, private val prefs: Prefs) {
     private val _foodCatalog = MutableStateFlow<List<FoodDef>>(emptyList())
     val foodCatalog: StateFlow<List<FoodDef>> = _foodCatalog.asStateFlow()
 
+    private val _sleep = MutableStateFlow<List<SleepNight>>(emptyList())
+    val sleep: StateFlow<List<SleepNight>> = _sleep.asStateFlow()
+
+    private val _stress = MutableStateFlow<List<StressEvent>>(emptyList())
+    val stress: StateFlow<List<StressEvent>> = _stress.asStateFlow()
+
+    private val _stressCatalog = MutableStateFlow<List<StressDef>>(emptyList())
+    val stressCatalog: StateFlow<List<StressDef>> = _stressCatalog.asStateFlow()
+
     /** Catalog entries that came from file but have no logged data yet. */
     private var storedOnly: List<ExerciseDef> = emptyList()
     private var storedFoodOnly: List<FoodDef> = emptyList()
+    private var storedStressOnly: List<StressDef> = emptyList()
 
     /** The folder's README and analysis script only need writing once per folder. */
     private var docsEnsured = false
@@ -108,8 +118,12 @@ class Repo(context: Context, private val prefs: Prefs) {
         _catalog.value = emptyList()
         _food.value = emptyList()
         _foodCatalog.value = emptyList()
+        _sleep.value = emptyList()
+        _stress.value = emptyList()
+        _stressCatalog.value = emptyList()
         storedOnly = emptyList()
         storedFoodOnly = emptyList()
+        storedStressOnly = emptyList()
         _status.value = Status.NO_FOLDER
     }
 
@@ -136,10 +150,14 @@ class Repo(context: Context, private val prefs: Prefs) {
                     _strength.value = snapshot.strength
                     _cardio.value = snapshot.cardio
                     _food.value = snapshot.food
+                    _sleep.value = snapshot.sleep
+                    _stress.value = snapshot.stress
                     storedOnly = snapshot.catalog
                     storedFoodOnly = snapshot.foodCatalog
+                    storedStressOnly = snapshot.stressCatalog
                     refreshCatalog()
                     refreshFoodCatalog()
+                    refreshStressCatalog()
                     runCatching {
                         withContext(Dispatchers.IO) {
                             store.saveSettings(uri, prefs.current.copy(folderUri = null))
@@ -348,6 +366,114 @@ class Repo(context: Context, private val prefs: Prefs) {
         storedFoodOnly = _foodCatalog.value
     }
 
+    private fun refreshStressCatalog() {
+        _stressCatalog.value = Catalog.rebuildStress(storedStressOnly, _stress.value)
+        storedStressOnly = _stressCatalog.value
+    }
+
+    // ------------------------------------------------------------------ sleep
+
+    /**
+     * Records a night, replacing any already logged for that date.
+     *
+     * A night is an attribute of a day rather than an event, so logging twice corrects the
+     * first entry instead of producing two.
+     */
+    fun addSleep(
+        date: LocalDate,
+        durationMin: Int,
+        quality: SleepQuality,
+        notes: String = "",
+    ) = mutate {
+        if (durationMin <= 0) return@mutate emptySet()
+        val row = SleepNight(
+            id = CsvStore.newId(),
+            date = date,
+            durationMin = durationMin,
+            quality = quality,
+            notes = Csv.clean(notes),
+            loggedAt = System.currentTimeMillis(),
+        )
+        _sleep.value = _sleep.value.filterNot { it.date == date } + row
+        setOf(YearMonth.from(date))
+    }
+
+    fun deleteSleep(id: String) = mutate {
+        val row = _sleep.value.firstOrNull { it.id == id } ?: return@mutate emptySet()
+        _sleep.value = _sleep.value.filterNot { it.id == id }
+        setOf(YearMonth.from(row.date))
+    }
+
+    // ----------------------------------------------------------------- stress
+
+    fun addStress(
+        date: LocalDate,
+        label: String,
+        direction: StressDirection,
+        weight: StressWeight,
+        notes: String = "",
+    ) = mutate {
+        val name = label.trim()
+        if (name.isEmpty()) return@mutate emptySet()
+        val row = StressEvent(
+            id = CsvStore.newId(),
+            date = date,
+            label = Catalog.canonical(_stressCatalog.value.map { it.name }, name),
+            direction = direction,
+            weight = weight,
+            notes = Csv.clean(notes),
+            loggedAt = System.currentTimeMillis(),
+        )
+        _stress.value = _stress.value + row
+        setOf(YearMonth.from(date))
+    }
+
+    fun deleteStress(id: String) = mutate {
+        val row = _stress.value.firstOrNull { it.id == id } ?: return@mutate emptySet()
+        _stress.value = _stress.value.filterNot { it.id == id }
+        setOf(YearMonth.from(row.date))
+    }
+
+    fun addStressName(name: String, direction: StressDirection, weight: StressWeight) = mutate {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@mutate emptySet()
+        val key = catalogKey(trimmed)
+        if (_stressCatalog.value.any { catalogKey(it.name) == key }) return@mutate emptySet()
+        storedStressOnly = storedStressOnly + StressDef(
+            name = trimmed,
+            direction = direction,
+            weight = weight,
+            createdAt = System.currentTimeMillis(),
+        )
+        emptySet()
+    }
+
+    fun renameStress(oldName: String, newName: String) = mutate {
+        val from = catalogKey(oldName)
+        val to = newName.trim()
+        if (to.isEmpty() || from == catalogKey(to)) return@mutate emptySet()
+        val touched = mutableSetOf<YearMonth>()
+        _stress.value = _stress.value.map { e ->
+            if (catalogKey(e.label) == from) {
+                touched += YearMonth.from(e.date); e.copy(label = to)
+            } else e
+        }
+        storedStressOnly = storedStressOnly.map { if (catalogKey(it.name) == from) it.copy(name = to) else it }
+        touched
+    }
+
+    fun deleteStressName(name: String, alsoDeleteHistory: Boolean) = mutate {
+        val key = catalogKey(name)
+        val touched = mutableSetOf<YearMonth>()
+        if (alsoDeleteHistory) {
+            _stress.value.filter { catalogKey(it.label) == key }
+                .forEach { touched += YearMonth.from(it.date) }
+            _stress.value = _stress.value.filterNot { catalogKey(it.label) == key }
+        }
+        storedStressOnly = storedStressOnly.filterNot { catalogKey(it.name) == key }
+        touched
+    }
+
     // ---------------------------------------------------------------- catalog
 
     /** Adds a name to the picker without logging anything against it yet. */
@@ -424,6 +550,7 @@ class Repo(context: Context, private val prefs: Prefs) {
                 }
                 refreshCatalog()
                 refreshFoodCatalog()
+                refreshStressCatalog()
                 val uri = folderUri ?: return@withLock
                 try {
                     withContext(Dispatchers.IO) {
@@ -431,9 +558,12 @@ class Repo(context: Context, private val prefs: Prefs) {
                             store.saveStrengthMonth(uri, month, _strength.value.filter { YearMonth.from(it.date) == month })
                             store.saveCardioMonth(uri, month, _cardio.value.filter { YearMonth.from(it.date) == month })
                             store.saveFoodMonth(uri, month, _food.value.filter { YearMonth.from(it.date) == month })
+                            store.saveSleepMonth(uri, month, _sleep.value.filter { YearMonth.from(it.date) == month })
+                            store.saveStressMonth(uri, month, _stress.value.filter { YearMonth.from(it.date) == month })
                         }
                         store.saveCatalog(uri, _catalog.value)
                         store.saveFoodCatalog(uri, _foodCatalog.value)
+                        store.saveStressCatalog(uri, _stressCatalog.value)
                     }
                     _error.value = null
                 } catch (t: Throwable) {

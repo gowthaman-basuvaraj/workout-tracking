@@ -54,6 +54,14 @@ import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StressDef
+import com.gowthaman.workout.data.StressDirection
+import com.gowthaman.workout.data.StressEvent
+import com.gowthaman.workout.data.StressWeight
+import com.gowthaman.workout.data.formatSleep
+import com.gowthaman.workout.data.parseSleepDuration
 import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Settings
@@ -86,6 +94,9 @@ fun LogScreen(
     val allCardio by vm.cardio.collectAsStateWithLifecycle()
     val allFood by vm.food.collectAsStateWithLifecycle()
     val foodCatalog by vm.foodCatalog.collectAsStateWithLifecycle()
+    val allSleep by vm.sleep.collectAsStateWithLifecycle()
+    val allStress by vm.stress.collectAsStateWithLifecycle()
+    val stressCatalog by vm.stressCatalog.collectAsStateWithLifecycle()
 
     // An exercise handed in from the Day screen already has a kind; honour it.
     val lockedKind = remember(initialExercise, catalog) {
@@ -128,6 +139,26 @@ fun LogScreen(
                     onClick = { kind = Kind.FOOD; exercise = "" },
                     label = { Text("Food") },
                 )
+                FilterChip(
+                    selected = kind == Kind.SLEEP,
+                    onClick = { kind = Kind.SLEEP; exercise = "" },
+                    label = { Text("Sleep") },
+                )
+                FilterChip(
+                    selected = kind == Kind.STRESS,
+                    onClick = { kind = Kind.STRESS; exercise = "" },
+                    label = { Text("Stress") },
+                )
+            }
+
+            if (kind == Kind.SLEEP) {
+                SleepForm(
+                    vm = vm,
+                    date = date,
+                    existing = remember(allSleep, date) { allSleep.firstOrNull { it.date == date } },
+                )
+                Spacer(Modifier.height(40.dp))
+                return@Column
             }
 
             ExercisePicker(
@@ -135,12 +166,15 @@ fun LogScreen(
                 onValueChange = { exercise = it },
                 options = when (kind) {
                     Kind.FOOD -> remember(foodCatalog) { foodPickerNames(foodCatalog) }
+                    Kind.STRESS -> remember(stressCatalog) { stressPickerNames(stressCatalog) }
                     else -> remember(catalog, kind) { pickerNames(catalog, kind) }.map { it.name }
                 },
                 label = when (kind) {
                     Kind.STRENGTH -> "Exercise"
                     Kind.CARDIO -> "Activity"
                     Kind.FOOD -> "Food or drink"
+                    Kind.STRESS -> "What happened"
+                    Kind.SLEEP -> "Sleep"
                 },
             )
 
@@ -156,9 +190,21 @@ fun LogScreen(
                         Kind.FOOD ->
                             "Type what you had — \"Coffee\", \"Toast\", \"Birthday cake\". " +
                                 "The next time you tap it, how and why are filled in already."
+                        Kind.STRESS ->
+                            "Name the thing — \"Deadline\", \"Commute\", \"Walk\", \"Called mum\". " +
+                                "Whether it winds you up or down is remembered per item."
+                        Kind.SLEEP -> ""
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (kind == Kind.STRESS) {
+                StressForm(
+                    vm = vm,
+                    date = date,
+                    label = exercise,
+                    catalog = stressCatalog,
+                    allStress = allStress,
                 )
             } else if (kind == Kind.FOOD) {
                 FoodForm(
@@ -737,6 +783,222 @@ private fun CardioSuggestionCard(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+// ---------------------------------------------------------------------- sleep
+
+@Composable
+private fun SleepForm(vm: AppViewModel, date: LocalDate, existing: SleepNight?) {
+    var duration by remember(date, existing) {
+        mutableStateOf(existing?.let { formatSleep(it.durationMin).replace(" ", "") } ?: "")
+    }
+    var quality by remember(date, existing) {
+        mutableStateOf(existing?.quality ?: SleepQuality.DEFAULT)
+    }
+    var notes by remember(date, existing) { mutableStateOf(existing?.notes.orEmpty()) }
+
+    SectionCard(title = "the night before ${date.relativeLabel().lowercase()}") {
+        Text(
+            "A night is filed under the morning you woke up, so this is the sleep that " +
+                "led into ${date.shortLabel()}.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    SectionCard(title = "how long") {
+        OutlinedTextField(
+            value = duration,
+            onValueChange = { duration = it },
+            label = { Text("Duration") },
+            placeholder = { Text("7h30") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "7h30, 7:30, 7.5 or 450m all work.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        QuickPickRow(
+            options = listOf("5h30", "6h", "6h30", "7h", "7h30", "8h", "8h30"),
+            onPick = { duration = it },
+        )
+    }
+
+    SectionCard(title = "how it was") {
+        ChipFlow {
+            SleepQuality.entries.forEach { option ->
+                FilterChip(
+                    selected = quality == option,
+                    onClick = { quality = option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Your read on it, not a score. Nothing here grades the night.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    SectionCard(title = "log it") {
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Note (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(12.dp))
+
+        val minutes = parseSleepDuration(duration)
+        Button(
+            onClick = { minutes?.let { vm.addSleep(date, it, quality, notes) } },
+            enabled = minutes != null,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (existing == null) "Save night" else "Replace night")
+        }
+        if (duration.isNotBlank() && minutes == null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Could not read \"$duration\" as a duration.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (existing != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Already logged: ${formatSleep(existing.durationMin)} / ${existing.quality.label}. " +
+                    "Saving replaces it — one night per day.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// --------------------------------------------------------------------- stress
+
+/** Stress picker order: most recently logged first. */
+fun stressPickerNames(catalog: List<StressDef>): List<String> =
+    catalog.sortedWith(
+        compareByDescending<StressDef> { it.lastUsed }
+            .thenByDescending { it.useCount }
+            .thenBy { catalogKey(it.name) }
+    ).map { it.name }
+
+@Composable
+private fun StressForm(
+    vm: AppViewModel,
+    date: LocalDate,
+    label: String,
+    catalog: List<StressDef>,
+    allStress: List<StressEvent>,
+) {
+    val known = remember(catalog, label) {
+        catalog.firstOrNull { catalogKey(it.name) == catalogKey(label) }
+    }
+    var direction by remember(label, known) {
+        mutableStateOf(known?.direction ?: StressDirection.DEFAULT)
+    }
+    var weight by remember(label, known) {
+        mutableStateOf(known?.weight ?: StressWeight.DEFAULT)
+    }
+    var notes by remember(label) { mutableStateOf("") }
+
+    SectionCard(title = "which way") {
+        ChipFlow {
+            StressDirection.entries.forEach { option ->
+                FilterChip(
+                    selected = direction == option,
+                    onClick = { direction = option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (direction == StressDirection.BUSTER)
+                "Something that wound you down."
+            else "Something that wound you up.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    SectionCard(title = "how much it counted") {
+        ChipFlow {
+            StressWeight.entries.forEach { option ->
+                FilterChip(
+                    selected = weight == option,
+                    onClick = { weight = option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+    }
+
+    SectionCard(title = "log it") {
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Note (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = {
+                vm.addStress(date, label, direction, weight, notes)
+                notes = ""
+            },
+            enabled = label.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add to the day")
+        }
+        if (known == null && label.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "New — how it is set here becomes the default next time.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+    }
+
+    val todays = remember(allStress, date) { allStress.filter { it.date == date } }
+    if (todays.isNotEmpty()) {
+        SectionCard(title = "logged on ${date.relativeLabel().lowercase()}") {
+            todays.forEach { event ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        NumberText(event.label)
+                        Text(
+                            "${event.direction.label} / ${event.weight.label}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    SmallIconButton(Icons.Filled.Clear, "Delete event") { vm.deleteStress(event.id) }
+                }
+            }
+        }
     }
 }
 

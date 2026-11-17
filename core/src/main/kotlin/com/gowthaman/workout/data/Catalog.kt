@@ -126,6 +126,26 @@ object Catalog {
         return byKey.values.sortedBy { catalogKey(it.name) }
     }
 
+    /** The same, for stress: direction and weight come from the most recent entry. */
+    fun rebuildStress(stored: List<StressDef>, events: List<StressEvent>): List<StressDef> {
+        val byKey = LinkedHashMap<String, StressDef>()
+        stored.forEach { def -> byKey[catalogKey(def.name)] = def.copy(useCount = 0, lastUsed = null) }
+
+        events.groupBy { catalogKey(it.label) }.forEach { (key, rows) ->
+            val newest = rows.maxByOrNull { it.loggedAt } ?: rows.last()
+            val existing = byKey[key]
+            byKey[key] = StressDef(
+                name = existing?.name ?: newest.label,
+                direction = newest.direction,
+                weight = newest.weight,
+                createdAt = existing?.createdAt?.takeIf { it > 0L } ?: rows.minOf { it.loggedAt },
+                lastUsed = rows.maxOf { it.date },
+                useCount = rows.size,
+            )
+        }
+        return byKey.values.sortedBy { catalogKey(it.name) }
+    }
+
     /** The same, for exercises: strength and cardio share one catalog keyed by name. */
     fun rebuildExercises(
         stored: List<ExerciseDef>,

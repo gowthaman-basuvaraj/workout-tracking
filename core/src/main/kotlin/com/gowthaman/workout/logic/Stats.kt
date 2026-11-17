@@ -5,6 +5,11 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StressDirection
+import com.gowthaman.workout.data.StressEvent
+import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.StrengthSet
@@ -32,6 +37,9 @@ data class Bucket(
     val sets: Int,
     val days: Int,
 )
+
+/** One stress label, with how many of its events were major. */
+data class StressTally(val name: String, val count: Int, val major: Int)
 
 data class PersonalRecord(
     val exercise: String,
@@ -73,7 +81,23 @@ data class Dashboard(
     val topFoods: List<Pair<String, Int>> = emptyList(),
     val cleanDayStreak: Int = 0,
     val lateNightSharePct: Int? = null,
+    // --- sleep, scoped to the same window ---
+    val nightsLogged: Int = 0,
+    val sleepAvgMin: Int = 0,
+    val shortNights: Int = 0,
+    val sleepQualityMix: List<Pair<SleepQuality, Int>> = emptyList(),
+    val sleepBuckets: List<Bucket> = emptyList(),
+    // --- stress, scoped to the same window ---
+    val enhancers: List<StressTally> = emptyList(),
+    val busters: List<StressTally> = emptyList(),
+    val enhancerCount: Int = 0,
+    val busterCount: Int = 0,
+    /** Days on which you reached for at least one buster. The number you control. */
+    val daysWithBuster: Int = 0,
 ) {
+    val hasSleep: Boolean get() = nightsLogged > 0
+    val hasStress: Boolean get() = enhancerCount > 0 || busterCount > 0
+
     val hasFood: Boolean get() = foodCount > 0
 
     /** Share of logged items that were indulgent, as a percentage of the total. */
@@ -93,6 +117,8 @@ data class Dashboard(
 object Stats {
 
     private const val LATE_HOUR = 21
+    /** Below this a night counts as short; the figure people actually act on. */
+    const val SHORT_NIGHT_MIN = 6 * 60
     private const val MIN_SAMPLE_FOR_SHARE = 5
 
     fun weekStart(date: LocalDate): LocalDate =
@@ -116,9 +142,13 @@ object Stats {
         settings: Settings,
         today: LocalDate,
         food: List<FoodEntry> = emptyList(),
+        sleep: List<SleepNight> = emptyList(),
+        stress: List<StressEvent> = emptyList(),
     ): Dashboard {
         val period = settings.dashboardPeriod
-        if (strength.isEmpty() && cardio.isEmpty() && food.isEmpty()) {
+        if (strength.isEmpty() && cardio.isEmpty() && food.isEmpty() &&
+            sleep.isEmpty() && stress.isEmpty()
+        ) {
             return Dashboard(period = period)
         }
 
@@ -135,6 +165,8 @@ object Stats {
         val prevSets = strength.filter { it.date >= prevStart && it.date < windowStart }
         val periodCardio = cardio.filter { it.date >= windowStart && it.date <= today }
         val periodFood = food.filter { it.date >= windowStart && it.date <= today }
+        val periodSleep = sleep.filter { it.date >= windowStart && it.date <= today }
+        val periodStress = stress.filter { it.date >= windowStart && it.date <= today }
 
         val byExercise = strength.groupBy { catalogKey(it.exercise) }
 
@@ -180,17 +212,69 @@ object Stats {
                 .take(8),
             cleanDayStreak = cleanStreak(food, today),
             lateNightSharePct = lateNightShare(periodFood),
+            nightsLogged = periodSleep.size,
+            sleepAvgMin = if (periodSleep.isEmpty()) 0
+            else periodSleep.sumOf { it.durationMin } / periodSleep.size,
+            shortNights = periodSleep.count { it.durationMin < SHORT_NIGHT_MIN },
+            sleepQualityMix = SleepQuality.entries
+                .map { q -> q to periodSleep.count { it.quality == q } },
+            sleepBuckets = buildSleepBuckets(sleep, today, period),
+            enhancers = tally(periodStress, StressDirection.ENHANCER),
+            busters = tally(periodStress, StressDirection.BUSTER),
+            enhancerCount = periodStress.count { it.direction == StressDirection.ENHANCER },
+            busterCount = periodStress.count { it.direction == StressDirection.BUSTER },
+            daysWithBuster = periodStress
+                .filter { it.direction == StressDirection.BUSTER }
+                .map { it.date }.distinct().size,
         )
     }
 
-    /** Volume chart bars, oldest first, aligned to whole days / Mondays / 1st-of-month. */
-    private fun buildBuckets(
-        strength: List<StrengthSet>,
-        unit: String,
-        bodyweightKg: Double,
+    /**
+     * Stress labels in one direction, commonest first, carrying how many were major.
+     *
+     * Counts only. No ratio of enhancers to busters: you log stressors when you are least
+     * able to log anything, so that number would read as precision it does not have.
+     */
+    private fun tally(events: List<StressEvent>, direction: StressDirection): List<StressTally> =
+        events.filter { it.direction == direction }
+            .groupBy { catalogKey(it.label) }.values
+            .map { rows ->
+                StressTally(
+                    name = rows.first().label,
+                    count = rows.size,
+                    major = rows.count { it.weight == StressWeight.MAJOR },
+                )
+            }
+            .sortedByDescending { it.count }
+            .take(8)
+
+    /** Average nightly sleep per bar, so the chart matches the volume chart's shape. */
+    private fun buildSleepBuckets(
+        sleep: List<SleepNight>,
         today: LocalDate,
         period: Period,
     ): List<Bucket> {
+        if (sleep.isEmpty()) return emptyList()
+        return bucketRanges(today, period).map { (start, end, unit) ->
+            val nights = sleep.filter { it.date >= start && it.date < end }
+            Bucket(
+                start = start,
+                unit = unit,
+                // Average rather than total: a week with six nights logged should not look
+                // like less sleep than a week with seven.
+                volume = if (nights.isEmpty()) 0.0
+                else nights.sumOf { it.durationMin }.toDouble() / nights.size,
+                sets = nights.size,
+                days = nights.size,
+            )
+        }
+    }
+
+    /** Bar boundaries for the selected period, oldest first. */
+    private fun bucketRanges(
+        today: LocalDate,
+        period: Period,
+    ): List<Triple<LocalDate, LocalDate, BucketUnit>> {
         val (bucketUnit, count) = chartShape(period)
         return (0 until count).map { index ->
             val back = (count - 1 - index).toLong()
@@ -204,15 +288,26 @@ object Stats {
                 BucketUnit.WEEK -> start.plusWeeks(1)
                 BucketUnit.MONTH -> start.plusMonths(1)
             }
-            val rows = strength.filter { it.date >= start && it.date < end }
-            Bucket(
-                start = start,
-                unit = bucketUnit,
-                volume = rows.sumOf { it.volume(unit, bodyweightKg) },
-                sets = rows.size,
-                days = rows.map { it.date }.distinct().size,
-            )
+            Triple(start, end, bucketUnit)
         }
+    }
+
+    /** Volume chart bars, oldest first, aligned to whole days / Mondays / 1st-of-month. */
+    private fun buildBuckets(
+        strength: List<StrengthSet>,
+        unit: String,
+        bodyweightKg: Double,
+        today: LocalDate,
+        period: Period,
+    ): List<Bucket> = bucketRanges(today, period).map { (start, end, bucketUnit) ->
+        val rows = strength.filter { it.date >= start && it.date < end }
+        Bucket(
+            start = start,
+            unit = bucketUnit,
+            volume = rows.sumOf { it.volume(unit, bodyweightKg) },
+            sets = rows.size,
+            days = rows.map { it.date }.distinct().size,
+        )
     }
 
     /** Consecutive trained days ending today, or ending yesterday if today is still untouched. */

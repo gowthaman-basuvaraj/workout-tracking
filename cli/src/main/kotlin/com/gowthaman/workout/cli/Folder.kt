@@ -7,6 +7,9 @@ import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.Settings
+import com.gowthaman.workout.data.SleepNight
+import com.gowthaman.workout.data.StressDef
+import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
 import java.io.File
@@ -36,6 +39,23 @@ class Folder(val dir: File) {
     val food: List<FoodEntry> by lazy {
         read(CsvFormat.FOOD_PREFIX) { CsvFormat.parseFood(it) }
             .sortedWith(compareBy({ it.date }, { it.loggedAt }))
+    }
+
+    val sleep: List<SleepNight> by lazy {
+        read(CsvFormat.SLEEP_PREFIX) { CsvFormat.parseSleep(it) }.sortedBy { it.date }
+    }
+
+    val stress: List<StressEvent> by lazy {
+        read(CsvFormat.STRESS_PREFIX) { CsvFormat.parseStress(it) }
+            .sortedWith(compareBy({ it.date }, { it.loggedAt }))
+    }
+
+    val stressCatalog: List<StressDef> by lazy {
+        val stored = File(dir, CsvFormat.STRESS_CATALOG_FILE)
+            .takeIf { it.isFile }
+            ?.let { CsvFormat.parseStressCatalog(it.readText()) }
+            .orEmpty()
+        Catalog.rebuildStress(stored, stress)
     }
 
     /** Rebuilt from the logs, exactly as the app does it. */
@@ -108,6 +128,43 @@ class Folder(val dir: File) {
 
     fun appendStrength(set: StrengthSet) =
         append(CsvFormat.strengthFile(YearMonth.from(set.date)), CsvFormat.STRENGTH_HEADER, CsvFormat.strengthRow(set))
+
+    fun appendStress(event: StressEvent) =
+        append(CsvFormat.stressFile(YearMonth.from(event.date)), CsvFormat.STRESS_HEADER, CsvFormat.stressRow(event))
+
+    /**
+     * Writes a night, replacing any already recorded for that date.
+     *
+     * The only rewrite in the CLI's normal path: one night per day means an append could
+     * silently produce two, and a duplicate night is worse than a slightly larger write.
+     */
+    fun putSleep(night: SleepNight) {
+        val month = YearMonth.from(night.date)
+        val file = File(dir, CsvFormat.sleepFile(month))
+        val existing = if (file.isFile) CsvFormat.parseSleep(file.readText()) else emptyList()
+        val merged = existing.filterNot { it.date == night.date } + night
+        file.writeText(CsvFormat.renderSleep(merged), StandardCharsets.UTF_8)
+    }
+
+    fun sleepOn(date: LocalDate): SleepNight? = sleep.firstOrNull { it.date == date }
+
+    fun removeStress(id: String): StressEvent? {
+        val event = stress.firstOrNull { it.id == id } ?: return null
+        val file = File(dir, CsvFormat.stressFile(YearMonth.from(event.date)))
+        if (!file.isFile) return null
+        val kept = CsvFormat.parseStress(file.readText()).filterNot { it.id == id }
+        if (kept.isEmpty()) file.delete() else file.writeText(CsvFormat.renderStress(kept), StandardCharsets.UTF_8)
+        return event
+    }
+
+    fun removeSleep(id: String): SleepNight? {
+        val night = sleep.firstOrNull { it.id == id } ?: return null
+        val file = File(dir, CsvFormat.sleepFile(YearMonth.from(night.date)))
+        if (!file.isFile) return null
+        val kept = CsvFormat.parseSleep(file.readText()).filterNot { it.id == id }
+        if (kept.isEmpty()) file.delete() else file.writeText(CsvFormat.renderSleep(kept), StandardCharsets.UTF_8)
+        return night
+    }
 
     fun appendCardio(entry: CardioEntry) =
         append(CsvFormat.cardioFile(YearMonth.from(entry.date)), CsvFormat.CARDIO_HEADER, CsvFormat.cardioRow(entry))

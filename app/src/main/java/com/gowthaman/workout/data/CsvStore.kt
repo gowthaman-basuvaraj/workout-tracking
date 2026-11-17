@@ -26,6 +26,9 @@ class CsvStore(context: Context) {
         val catalog: List<ExerciseDef> = emptyList(),
         val food: List<FoodEntry> = emptyList(),
         val foodCatalog: List<FoodDef> = emptyList(),
+        val sleep: List<SleepNight> = emptyList(),
+        val stress: List<StressEvent> = emptyList(),
+        val stressCatalog: List<StressDef> = emptyList(),
     )
 
     // ------------------------------------------------------------------ reading
@@ -36,8 +39,11 @@ class CsvStore(context: Context) {
         val strength = ArrayList<StrengthSet>()
         val cardio = ArrayList<CardioEntry>()
         val food = ArrayList<FoodEntry>()
+        val sleep = ArrayList<SleepNight>()
+        val stress = ArrayList<StressEvent>()
         var catalog: List<ExerciseDef> = emptyList()
         var foodCatalog: List<FoodDef> = emptyList()
+        var stressCatalog: List<StressDef> = emptyList()
 
         for (file in root.listFiles()) {
             if (!file.isFile) continue
@@ -46,6 +52,8 @@ class CsvStore(context: Context) {
             when {
                 name == CsvFormat.FOOD_CATALOG_FILE ->
                     foodCatalog = CsvFormat.parseFoodCatalog(readText(file.uri))
+                name == CsvFormat.STRESS_CATALOG_FILE ->
+                    stressCatalog = CsvFormat.parseStressCatalog(readText(file.uri))
                 name == CsvFormat.CATALOG_FILE ->
                     catalog = CsvFormat.parseCatalog(readText(file.uri))
                 !name.endsWith(CsvFormat.EXT) -> Unit
@@ -55,6 +63,10 @@ class CsvStore(context: Context) {
                     cardio += CsvFormat.parseCardio(readText(file.uri))
                 name.startsWith(CsvFormat.FOOD_PREFIX) ->
                     food += CsvFormat.parseFood(readText(file.uri))
+                name.startsWith(CsvFormat.SLEEP_PREFIX) ->
+                    sleep += CsvFormat.parseSleep(readText(file.uri))
+                name.startsWith(CsvFormat.STRESS_PREFIX) ->
+                    stress += CsvFormat.parseStress(readText(file.uri))
             }
         }
 
@@ -64,6 +76,9 @@ class CsvStore(context: Context) {
             catalog = catalog,
             food = food.sortedWith(compareBy({ it.date }, { it.loggedAt })),
             foodCatalog = foodCatalog,
+            sleep = sleep.sortedBy { it.date },
+            stress = stress.sortedWith(compareBy({ it.date }, { it.loggedAt })),
+            stressCatalog = stressCatalog,
         )
     }
 
@@ -82,6 +97,15 @@ class CsvStore(context: Context) {
 
     fun saveFoodMonth(treeUri: Uri, month: YearMonth, rows: List<FoodEntry>) =
         writeOrDelete(treeUri, CsvFormat.foodFile(month), rows) { CsvFormat.renderFood(it) }
+
+    fun saveSleepMonth(treeUri: Uri, month: YearMonth, rows: List<SleepNight>) =
+        writeOrDelete(treeUri, CsvFormat.sleepFile(month), rows) { CsvFormat.renderSleep(it) }
+
+    fun saveStressMonth(treeUri: Uri, month: YearMonth, rows: List<StressEvent>) =
+        writeOrDelete(treeUri, CsvFormat.stressFile(month), rows) { CsvFormat.renderStress(it) }
+
+    fun saveStressCatalog(treeUri: Uri, defs: List<StressDef>) =
+        writeText(treeUri, CsvFormat.STRESS_CATALOG_FILE, MIME_CSV, CsvFormat.renderStressCatalog(defs))
 
     fun saveCatalog(treeUri: Uri, defs: List<ExerciseDef>) =
         writeText(treeUri, CsvFormat.CATALOG_FILE, MIME_CSV, CsvFormat.renderCatalog(defs))
@@ -180,7 +204,7 @@ class CsvStore(context: Context) {
         private const val DOC_SCRIPT = "analyze.py"
 
         /** Bumped whenever the generated docs change; see refreshDoc. */
-        private const val DOCS_MARKER = "jotter-docs v4"
+        private const val DOCS_MARKER = "jotter-docs v5"
 
         fun newId(): String = CsvFormat.newId()
     }

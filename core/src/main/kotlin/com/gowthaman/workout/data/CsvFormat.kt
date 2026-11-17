@@ -21,6 +21,9 @@ object CsvFormat {
     const val CATALOG_FILE = "exercises.csv"
     const val FOOD_CATALOG_FILE = "foods.csv"
     const val SETTINGS_FILE = "settings.csv"
+    const val SLEEP_PREFIX = "sleep-"
+    const val STRESS_PREFIX = "stress-"
+    const val STRESS_CATALOG_FILE = "stress.csv"
     const val EXT = ".csv"
 
     val STRENGTH_HEADER = listOf(
@@ -36,6 +39,13 @@ object CsvFormat {
     val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
     val FOOD_CATALOG_HEADER = listOf("name", "purpose", "scale", "created_at", "last_used", "uses")
     val SETTINGS_HEADER = listOf("key", "value")
+    val SLEEP_HEADER = listOf("id", "date", "duration_min", "quality", "notes", "logged_at")
+    val STRESS_HEADER = listOf(
+        "id", "date", "label", "direction", "weight", "notes", "logged_at",
+    )
+    val STRESS_CATALOG_HEADER = listOf(
+        "name", "direction", "weight", "created_at", "last_used", "uses",
+    )
 
     /**
      * Carried as the first row of settings.csv so the warning is visible the moment the
@@ -55,6 +65,8 @@ object CsvFormat {
     fun strengthFile(month: YearMonth): String = STRENGTH_PREFIX + monthSuffix(month) + EXT
     fun cardioFile(month: YearMonth): String = CARDIO_PREFIX + monthSuffix(month) + EXT
     fun foodFile(month: YearMonth): String = FOOD_PREFIX + monthSuffix(month) + EXT
+    fun sleepFile(month: YearMonth): String = SLEEP_PREFIX + monthSuffix(month) + EXT
+    fun stressFile(month: YearMonth): String = STRESS_PREFIX + monthSuffix(month) + EXT
 
     fun parseDate(raw: String): LocalDate? =
         runCatching { LocalDate.parse(raw.trim(), ISO) }.getOrNull()
@@ -114,6 +126,48 @@ object CsvFormat {
             qty = r.int("qty", 1).coerceAtLeast(1),
             notes = r.str("notes"),
             loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseSleep(text: String): List<SleepNight> = parseCsv(text).mapNotNull { r ->
+        val date = parseDate(r.str("date")) ?: return@mapNotNull null
+        val minutes = r.int("duration_min")
+        if (minutes <= 0) return@mapNotNull null
+        SleepNight(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            durationMin = minutes,
+            quality = SleepQuality.parse(r.str("quality")),
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseStress(text: String): List<StressEvent> = parseCsv(text).mapNotNull { r ->
+        val date = parseDate(r.str("date")) ?: return@mapNotNull null
+        val label = r.str("label").trim()
+        if (label.isEmpty()) return@mapNotNull null
+        StressEvent(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            label = label,
+            direction = StressDirection.fromName(r.str("direction")),
+            weight = StressWeight.parse(r.str("weight")),
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseStressCatalog(text: String): List<StressDef> = parseCsv(text).mapNotNull { r ->
+        val name = r.str("name").trim()
+        if (name.isEmpty()) return@mapNotNull null
+        StressDef(
+            name = name,
+            direction = StressDirection.fromName(r.str("direction")),
+            weight = StressWeight.parse(r.str("weight")),
+            createdAt = r.long("created_at"),
+            lastUsed = parseDate(r.str("last_used")),
+            useCount = r.int("uses"),
         )
     }
 
@@ -245,6 +299,32 @@ object CsvFormat {
         }
     }
 
+    fun renderSleep(rows: List<SleepNight>): String = buildString {
+        appendLine(Csv.row(SLEEP_HEADER))
+        rows.sortedBy { it.date }.forEach { appendLine(sleepRow(it)) }
+    }
+
+    fun renderStress(rows: List<StressEvent>): String = buildString {
+        appendLine(Csv.row(STRESS_HEADER))
+        rows.sortedWith(compareBy({ it.date }, { it.loggedAt })).forEach { appendLine(stressRow(it)) }
+    }
+
+    fun renderStressCatalog(defs: List<StressDef>): String = buildString {
+        appendLine(Csv.row(STRESS_CATALOG_HEADER))
+        defs.sortedBy { catalogKey(it.name) }.forEach { d ->
+            appendLine(
+                Csv.row(
+                    d.name,
+                    d.direction.name,
+                    d.weight.level.toString(),
+                    d.createdAt.toString(),
+                    d.lastUsed?.toString().orEmpty(),
+                    d.useCount.toString(),
+                )
+            )
+        }
+    }
+
     /** A single record, with no header — what the CLI appends to an existing file. */
     fun strengthRow(s: StrengthSet): String = Csv.row(
         s.id,
@@ -268,6 +348,25 @@ object CsvFormat {
         c.distUnit,
         Csv.clean(c.notes),
         c.loggedAt.toString(),
+    )
+
+    fun sleepRow(n: SleepNight): String = Csv.row(
+        n.id,
+        n.date.toString(),
+        n.durationMin.toString(),
+        n.quality.level.toString(),
+        Csv.clean(n.notes),
+        n.loggedAt.toString(),
+    )
+
+    fun stressRow(e: StressEvent): String = Csv.row(
+        e.id,
+        e.date.toString(),
+        e.label,
+        e.direction.name,
+        e.weight.level.toString(),
+        Csv.clean(e.notes),
+        e.loggedAt.toString(),
     )
 
     fun foodRow(f: FoodEntry): String = Csv.row(
