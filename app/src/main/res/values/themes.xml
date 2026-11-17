@@ -1,5 +1,9 @@
 <resources>
+    <!-- The parent is the dark Material theme, so the window background is set explicitly
+         and follows the system light/dark setting via values-night. Compose paints
+         everything else. -->
     <style name="Theme.WorkoutLog" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

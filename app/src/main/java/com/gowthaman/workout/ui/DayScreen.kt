@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +69,9 @@ fun DayScreen(
     var confirmDelete by remember { mutableStateOf<ExerciseSession?>(null) }
 
     Scaffold(
+        // Root already consumes the system bars. Without this the nested Scaffold applies
+        // the status-bar inset a second time, leaving a band of background above the date.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { onLog(Kind.STRENGTH, null) },

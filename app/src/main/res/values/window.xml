@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches LightColors.background in Theme.kt, so the window behind Compose and the
+         launch splash do not flash a different colour than the app itself. -->
+    <color name="window_background">#FAFBFD</color>
+</resources>
