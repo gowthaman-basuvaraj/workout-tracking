@@ -6,6 +6,7 @@ import com.gowthaman.workout.data.CsvFormat
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
 import java.io.File
@@ -63,18 +64,35 @@ class Folder(val dir: File) {
             ?.flatMap { parse(it.readText(StandardCharsets.UTF_8)) }
             .orEmpty()
 
+    /** True when the app has published settings.csv into this folder. */
+    val hasPublishedSettings: Boolean get() = File(dir, CsvFormat.SETTINGS_FILE).isFile
+
     /**
-     * The weight unit to log in, taken from the most recent weighted set.
+     * The app's settings, as published into the folder.
      *
-     * The app keeps its unit in SharedPreferences on the phone, which a laptop cannot see.
-     * Reading it back off the data is more reliable than asking, and silently correct for
-     * anyone who never changes it.
+     * Read-only here by design: the app owns these values and overwrites the file whenever
+     * one changes, so editing it on a computer achieves nothing.
+     *
+     * Units fall back to whatever the most recent logged row used, which is right for
+     * anyone whose folder predates this file.
      */
-    fun weightUnit(): String =
+    val settings: Settings by lazy {
+        val fallback = Settings(weightUnit = inferredWeightUnit(), distanceUnit = inferredDistanceUnit())
+        File(dir, CsvFormat.SETTINGS_FILE)
+            .takeIf { it.isFile }
+            ?.let { CsvFormat.parseSettings(it.readText(), fallback) }
+            ?: fallback
+    }
+
+    private fun inferredWeightUnit(): String =
         strength.filter { it.weight > 0 }.maxByOrNull { it.loggedAt }?.unit ?: Units.KG
 
-    fun distanceUnit(): String =
+    private fun inferredDistanceUnit(): String =
         cardio.filter { it.distance > 0 }.maxByOrNull { it.loggedAt }?.distUnit ?: Units.KM
+
+    fun weightUnit(): String = settings.weightUnit
+
+    fun distanceUnit(): String = settings.distanceUnit
 
     // ------------------------------------------------------------------ writing
 

@@ -9,6 +9,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -64,6 +66,23 @@ class Repo(context: Context, private val prefs: Prefs) {
 
     init {
         if (folderUri != null) reload() else _status.value = Status.NO_FOLDER
+
+        // Mirror settings into the folder whenever they change, so the desktop CLI agrees
+        // with the app about units and the overload window instead of guessing. The copy
+        // is write-only from here; nothing reads it back.
+        scope.launch {
+            prefs.state
+                .map { it.copy(folderUri = null) }
+                .distinctUntilChanged()
+                .collect { publishSettings(it) }
+        }
+    }
+
+    private suspend fun publishSettings(settings: Settings) {
+        val uri = folderUri ?: return
+        writeLock.withLock {
+            runCatching { withContext(Dispatchers.IO) { store.saveSettings(uri, settings) } }
+        }
     }
 
     // -------------------------------------------------------------------- folder
@@ -121,6 +140,11 @@ class Repo(context: Context, private val prefs: Prefs) {
                     storedFoodOnly = snapshot.foodCatalog
                     refreshCatalog()
                     refreshFoodCatalog()
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            store.saveSettings(uri, prefs.current.copy(folderUri = null))
+                        }
+                    }
                     _error.value = null
                     _status.value = Status.READY
                 } catch (t: Throwable) {

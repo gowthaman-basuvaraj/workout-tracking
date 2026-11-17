@@ -89,6 +89,7 @@ your-folder/
   food-2026-11.csv        one row per food/drink logged
   exercises.csv           the picker's catalog (rebuilt from the logs, safe to delete)
   foods.csv               the food catalog, with each item's usual purpose and rating
+  settings.csv            a read-only copy of the app's settings, for desktop tools
   README.md               the column-by-column schema
   analyze.py              a pandas starter script
 ```
@@ -157,6 +158,12 @@ so the CLI can never create a second "coffee" beside your "Coffee". Partial name
 
 It appends a single row rather than rewriting the month, which keeps the window for a sync
 conflict far smaller than the app's own writes.
+
+**Settings travel with the data.** The app publishes `settings.csv` into the folder, so
+`jotter due` applies your real overload window and `jotter set` logs in your real unit
+rather than guessing. That copy is **one-way and read-only**: the app rewrites it whenever
+a setting changes, so edits made on a laptop are lost — change settings in the app. Without
+the file the CLI uses defaults, reads units off your most recent logged row, and says so.
 
 ## Building
 
@@ -230,7 +237,7 @@ core/     pure JVM — shared by :app and :cli
     Food.kt         FoodEntry, purpose, the healthy-to-indulgent scale
     Settings.kt     preferences as a plain value type
     Csv.kt          CSV reader/writer, header-addressed rows
-    CsvFormat.kt    file names, headers, row <-> text. The format, with no I/O
+    CsvFormat.kt    file names, headers, row <-> text, settings. The format, no I/O
     Catalog.kt      name matching, canonical spelling, catalog rebuilding
     DateFormat.kt   "3 days ago" and friends
   logic/

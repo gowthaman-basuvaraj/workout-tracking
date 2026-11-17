@@ -181,3 +181,58 @@ class CsvFormatTest {
         assertTrue(!CsvFormat.isConflictCopy("food-2026-11.csv"))
     }
 }
+
+/** settings.csv is the app's one-way publication to desktop tools. */
+class SettingsFileTest {
+
+    @Test
+    fun `settings survive a round trip`() {
+        val settings = com.gowthaman.workout.data.Settings(
+            overloadPeriodDays = 15,
+            weightUnit = Units.LB,
+            distanceUnit = "mi",
+            weightIncrement = 5.0,
+            repMin = 6,
+            repMax = 10,
+            bodyweightRepCeiling = 20,
+            userBodyweightKg = 78.5,
+            dashboardPeriod = com.gowthaman.workout.data.Period.QUARTER,
+        )
+        val read = CsvFormat.parseSettings(CsvFormat.renderSettings(settings))
+        assertEquals(settings, read)
+    }
+
+    @Test
+    fun `the device-specific folder uri is never published`() {
+        val text = CsvFormat.renderSettings(
+            com.gowthaman.workout.data.Settings(folderUri = "content://tree/primary%3ADocuments")
+        )
+        assertTrue("the content uri must not leak into the folder", !text.contains("content://"))
+        assertEquals(null, CsvFormat.parseSettings(text).folderUri)
+    }
+
+    @Test
+    fun `the warning is the first row, so it is seen on opening the file`() {
+        val lines = CsvFormat.renderSettings(com.gowthaman.workout.data.Settings()).lines()
+        assertTrue(lines[0].startsWith("key,value"))
+        assertTrue(lines[1].startsWith("_note,"))
+        assertTrue(lines[1].contains("Read-only"))
+    }
+
+    @Test
+    fun `missing and unreadable values fall back rather than failing`() {
+        val text = "key,value\noverload_period_days,notanumber\nweight_unit,stones\nnonsense,1\n"
+        val base = com.gowthaman.workout.data.Settings()
+        val read = CsvFormat.parseSettings(text, base)
+
+        assertEquals(base.overloadPeriodDays, read.overloadPeriodDays)
+        assertEquals(base.weightUnit, read.weightUnit)
+        assertEquals(base.repMin, read.repMin)
+    }
+
+    @Test
+    fun `an empty file yields the fallback untouched`() {
+        val base = com.gowthaman.workout.data.Settings(weightUnit = Units.LB)
+        assertEquals(base, CsvFormat.parseSettings("", base))
+    }
+}

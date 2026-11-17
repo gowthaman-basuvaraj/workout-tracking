@@ -20,6 +20,7 @@ object CsvFormat {
     const val FOOD_PREFIX = "food-"
     const val CATALOG_FILE = "exercises.csv"
     const val FOOD_CATALOG_FILE = "foods.csv"
+    const val SETTINGS_FILE = "settings.csv"
     const val EXT = ".csv"
 
     val STRENGTH_HEADER = listOf(
@@ -34,6 +35,15 @@ object CsvFormat {
     )
     val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
     val FOOD_CATALOG_HEADER = listOf("name", "purpose", "scale", "created_at", "last_used", "uses")
+    val SETTINGS_HEADER = listOf("key", "value")
+
+    /**
+     * Carried as the first row of settings.csv so the warning is visible the moment the
+     * file is opened, rather than only in the folder README.
+     */
+    const val SETTINGS_NOTE =
+        "Written by the Jotter app. Read-only here: the app overwrites this file whenever " +
+            "a setting changes, so edits made on a computer will be lost."
 
     private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
@@ -130,6 +140,54 @@ object CsvFormat {
             createdAt = r.long("created_at"),
             lastUsed = parseDate(r.str("last_used")),
             useCount = r.int("uses"),
+        )
+    }
+
+    /**
+     * The app's settings, as the desktop sees them.
+     *
+     * One-way on purpose. The phone owns these values, and this is a copy so the CLI can
+     * agree with the app about units and the overload window instead of guessing. Nothing
+     * reads it back on the phone, so there is no edit to conflict over.
+     *
+     * [Settings.folderUri] is left out: it is a device-specific content:// uri and means
+     * nothing on a laptop.
+     */
+    fun renderSettings(settings: Settings): String = buildString {
+        appendLine(Csv.row(SETTINGS_HEADER))
+        appendLine(Csv.row("_note", SETTINGS_NOTE))
+        listOf(
+            "overload_period_days" to settings.overloadPeriodDays.toString(),
+            "weight_unit" to settings.weightUnit,
+            "distance_unit" to settings.distanceUnit,
+            "weight_increment" to settings.weightIncrement.fmt(2),
+            "rep_min" to settings.repMin.toString(),
+            "rep_max" to settings.repMax.toString(),
+            "bodyweight_rep_ceiling" to settings.bodyweightRepCeiling.toString(),
+            "user_bodyweight_kg" to settings.userBodyweightKg.fmt(2),
+            "dashboard_period" to settings.dashboardPeriod.name,
+        ).forEach { (key, value) -> appendLine(Csv.row(key, value)) }
+    }
+
+    /** Missing or unreadable values fall back to the defaults rather than failing. */
+    fun parseSettings(text: String, base: Settings = Settings()): Settings {
+        val values = parseCsv(text).associate { it.str("key").trim() to it.str("value").trim() }
+        fun int(key: String, fallback: Int) = values[key]?.toIntOrNull() ?: fallback
+        fun num(key: String, fallback: Double) =
+            values[key]?.replace(',', '.')?.toDoubleOrNull() ?: fallback
+        fun unit(key: String, fallback: String, allowed: Set<String>) =
+            values[key]?.takeIf { it in allowed } ?: fallback
+
+        return base.copy(
+            overloadPeriodDays = int("overload_period_days", base.overloadPeriodDays),
+            weightUnit = unit("weight_unit", base.weightUnit, setOf(Units.KG, Units.LB)),
+            distanceUnit = unit("distance_unit", base.distanceUnit, setOf(Units.KM, Units.MI)),
+            weightIncrement = num("weight_increment", base.weightIncrement),
+            repMin = int("rep_min", base.repMin),
+            repMax = int("rep_max", base.repMax),
+            bodyweightRepCeiling = int("bodyweight_rep_ceiling", base.bodyweightRepCeiling),
+            userBodyweightKg = num("user_bodyweight_kg", base.userBodyweightKg),
+            dashboardPeriod = Period.fromName(values["dashboard_period"]),
         )
     }
 

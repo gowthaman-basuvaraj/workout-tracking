@@ -8,6 +8,7 @@ import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.StrengthSet
+import com.gowthaman.workout.data.CsvFormat as Fmt
 import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.fmt
@@ -15,6 +16,7 @@ import com.gowthaman.workout.data.formatDuration
 import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.summary
+import com.gowthaman.workout.logic.Stats
 import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -54,6 +56,8 @@ private fun run(raw: List<String>) {
         "ls", "list" -> { args.takeCommand(); return list(args) }
         "today", "day" -> { args.takeCommand(); return showDay(args) }
         "undo" -> { args.takeCommand(); return undo(args) }
+        "due" -> { args.takeCommand(); return due(args) }
+        "settings", "config" -> { args.takeCommand(); return showSettings(args) }
         "food" -> { args.takeCommand(); return logFood(args, explicit = true) }
         "set", "lift" -> { args.takeCommand(); return logSet(args) }
         "cardio" -> { args.takeCommand(); return logCardio(args) }
@@ -467,6 +471,66 @@ private fun showDay(args: Args) {
     }
 }
 
+/**
+ * Which lifts have gone a full overload window without improving.
+ *
+ * Uses the settings the app published into the folder, so the answer here matches the
+ * phone's. Without that file it falls back to defaults and says so, rather than quietly
+ * advising against a window you never chose.
+ */
+private fun due(args: Args) {
+    val folder = resolveFolder(args)
+    val dashboard = Stats.build(
+        folder.strength, folder.cardio, folder.settings, LocalDate.now(), folder.food
+    )
+
+    if (!folder.hasPublishedSettings) {
+        println("note: no settings.csv in this folder, so these use defaults")
+        println("      (open the app once and it will publish your real settings)")
+        println()
+    }
+
+    if (dashboard.overloadDue.isEmpty()) {
+        println("Nothing is due. Overload window: every ${folder.settings.overloadPeriodDays} days.")
+        return
+    }
+
+    println("DUE FOR AN OVERLOAD  (every ${folder.settings.overloadPeriodDays} days)")
+    println()
+    val width = dashboard.overloadDue.maxOf { it.exercise.length }.coerceAtMost(26)
+    dashboard.overloadDue.forEach {
+        println("  ${it.exercise.padEnd(width)}  ${it.suggestion.padEnd(18)}  " +
+            "no step up in ${it.daysSinceProgress} days, last done ${it.lastDone.agoLabel()}")
+    }
+}
+
+/** Shows the settings the app published, and makes clear they are not editable here. */
+private fun showSettings(args: Args) {
+    val folder = resolveFolder(args)
+    val s = folder.settings
+
+    if (!folder.hasPublishedSettings) {
+        println("No ${Fmt.SETTINGS_FILE} in ${folder.dir}.")
+        println("Showing defaults, with units taken from your most recent logged row.")
+        println("Open the app once and it will publish the real ones.")
+    } else {
+        println("From ${Fmt.SETTINGS_FILE}, published by the app.")
+        println("READ-ONLY here: the app overwrites this file whenever a setting changes,")
+        println("so edits made on a computer will be lost. Change them in the app.")
+    }
+    println()
+    listOf(
+        "overload window" to "every ${s.overloadPeriodDays} days",
+        "rep range" to "${s.repMin} to ${s.repMax}",
+        "weight increment" to "${s.weightIncrement.fmt(2)} ${s.weightUnit}",
+        "bodyweight ceiling" to "${s.bodyweightRepCeiling} reps",
+        "weight unit" to s.weightUnit,
+        "distance unit" to s.distanceUnit,
+        "your bodyweight" to if (s.userBodyweightKg > 0) "${s.userBodyweightKg.fmt(1)} kg" else "not set",
+        "dashboard period" to s.dashboardPeriod.label.lowercase(),
+    ).forEach { (k, v) -> println("  ${k.padEnd(20)} $v") }
+}
+
 // --------------------------------------------------------------- interactive
 
 private fun interactive() {
@@ -523,6 +587,8 @@ USAGE
   jotter cardio <act> [opts]   log a cardio session
   jotter ls [what] [filter]    see what names exist
   jotter today [date]          show a day
+  jotter due                   which lifts are due for an overload
+  jotter settings              the settings the app published (read-only)
   jotter undo                  remove what you just logged
   jotter init <path>           remember where your data folder is
   jotter help [command]        more detail on one command
@@ -537,6 +603,11 @@ NAMES
   Names are matched loosely and case does not matter: "cof" finds Coffee, and
   logging "coffee" writes "Coffee" so you never end up with two of them.
   An unknown name is refused rather than guessed - add it with --new.
+
+SETTINGS
+  Units and the overload window come from settings.csv, which the app writes into
+  the folder. It is read-only here - the app overwrites it - so change settings in
+  the app. Without that file, defaults are used and units are read off your data.
 
 FINDING THE FOLDER, in order
   --dir, then ${'$'}JOTTER_DIR, then ~/.jotter, then the current directory.

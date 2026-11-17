@@ -89,6 +89,15 @@ class CsvStore(context: Context) {
     fun saveFoodCatalog(treeUri: Uri, defs: List<FoodDef>) =
         writeText(treeUri, CsvFormat.FOOD_CATALOG_FILE, MIME_CSV, CsvFormat.renderFoodCatalog(defs))
 
+    /**
+     * Publishes the settings into the folder for the desktop CLI to read.
+     *
+     * Strictly one-way: the app never reads this file back, so it is always the phone's
+     * values that win and there is nothing to merge.
+     */
+    fun saveSettings(treeUri: Uri, settings: Settings) =
+        writeText(treeUri, CsvFormat.SETTINGS_FILE, MIME_CSV, CsvFormat.renderSettings(settings))
+
     /** An emptied month leaves no file behind rather than a lone header. */
     private fun <T> writeOrDelete(
         treeUri: Uri,
@@ -171,7 +180,7 @@ class CsvStore(context: Context) {
         private const val DOC_SCRIPT = "analyze.py"
 
         /** Bumped whenever the generated docs change; see refreshDoc. */
-        private const val DOCS_MARKER = "jotter-docs v3"
+        private const val DOCS_MARKER = "jotter-docs v4"
 
         fun newId(): String = CsvFormat.newId()
     }
