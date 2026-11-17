@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodScale
@@ -55,30 +56,32 @@ private data class LibraryRow(
     val detail: String,
 )
 
-private fun ExerciseDef.toRow(): LibraryRow = LibraryRow(
-    name = name,
-    kind = kind,
-    lastUsed = lastUsed,
-    useCount = useCount,
-    detail = when {
-        lastUsed == null -> "Never logged"
-        kind == Kind.CARDIO ->
-            "$useCount session${if (useCount == 1) "" else "s"}  ·  ${lastUsed.agoLabel()}"
-        else -> "$useCount set${if (useCount == 1) "" else "s"}  ·  ${lastUsed.agoLabel()}"
-    },
-)
+private fun ExerciseDef.toRow(): LibraryRow {
+    // Bound to a local: lastUsed is declared in :core, so it cannot be smart cast here.
+    val last = lastUsed
+    val noun = if (kind == Kind.CARDIO) "session" else "set"
+    return LibraryRow(
+        name = name,
+        kind = kind,
+        lastUsed = last,
+        useCount = useCount,
+        detail = if (last == null) "Never logged"
+        else "$useCount $noun${if (useCount == 1) "" else "s"}  ·  ${last.agoLabel()}",
+    )
+}
 
-private fun FoodDef.toRow(): LibraryRow = LibraryRow(
-    name = name,
-    kind = Kind.FOOD,
-    lastUsed = lastUsed,
-    useCount = useCount,
-    detail = when (lastUsed) {
-        null -> "Never logged  ·  ${purpose.label} · ${scale.label}"
-        else -> "$useCount time${if (useCount == 1) "" else "s"}  ·  ${lastUsed.agoLabel()}" +
-            "  ·  ${purpose.label} · ${scale.label}"
-    },
-)
+private fun FoodDef.toRow(): LibraryRow {
+    val last = lastUsed
+    val defaults = "${purpose.label} · ${scale.label}"
+    return LibraryRow(
+        name = name,
+        kind = Kind.FOOD,
+        lastUsed = last,
+        useCount = useCount,
+        detail = if (last == null) "Never logged  ·  $defaults"
+        else "$useCount time${if (useCount == 1) "" else "s"}  ·  ${last.agoLabel()}  ·  $defaults",
+    )
+}
 
 @Composable
 fun ExercisesScreen(

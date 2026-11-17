@@ -14,4 +14,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Jotter"
+include(":core")
 include(":app")
+include(":cli")

@@ -127,6 +127,37 @@ print(sets.set_index("date").volume.resample("W-MON").sum())
 
 `README.md` in the data folder documents every column.
 
+## Logging from a laptop
+
+`jotter.jar` writes straight into the same synced folder, so you do not have to pick up
+your phone to record a coffee. The app sees the change the next time it opens.
+
+```bash
+./gradlew :cli:jar                       # -> cli/build/libs/jotter.jar
+java -jar jotter.jar init ~/sync/jotter  # remember the folder
+```
+
+```bash
+jotter coffee                      # purpose and rating come from the catalog
+jotter biscuits -n 2 --indulgent   # override either of them
+jotter set bench 10x42.5 --sets 3  # weight unit inferred from your last weighted set
+jotter cardio run --time 31 --dist 5.3
+jotter ls food cof                 # what names exist
+jotter today                       # what is logged
+jotter undo                        # remove what you just logged
+jotter help set                    # per-command help
+```
+
+**Names cannot drift.** `coffee`, `COFFEE` and `  Coffee ` all resolve through the same
+case-insensitive key the app uses, and the catalog's own spelling is what gets written —
+so the CLI can never create a second "coffee" beside your "Coffee". Partial names work
+(`cof`), an ambiguous one lists the candidates and writes nothing, and an unknown one is
+**refused** with a did-you-mean rather than silently minting a catalog entry from a typo.
+`--new` is how you add something deliberately.
+
+It appends a single row rather than rewriting the month, which keeps the window for a sync
+conflict far smaller than the app's own writes.
+
 ## Building
 
 Requires JDK 17 and the Android SDK (platform 36). `local.properties` already points at
@@ -134,7 +165,8 @@ Requires JDK 17 and the Android SDK (platform 36). `local.properties` already po
 
 ```bash
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
-./gradlew test                   # unit tests for the overload engine, CSV and stats
+./gradlew :cli:jar               # cli/build/libs/jotter.jar
+./gradlew :core:test             # the shared logic: overload, CSV, catalog, stats
 ./gradlew installDebug           # to a connected device or emulator
 ```
 
@@ -187,22 +219,34 @@ download URL and `commandlinetools-linux-` to the matching archive.
 
 ## Layout
 
+Three Gradle modules. `:core` is plain JVM Kotlin with no Android on the classpath at all,
+which is what lets the phone and the laptop run the same code instead of two copies that
+drift apart.
+
 ```
-app/src/main/java/com/gowthaman/workout/
-  AppViewModel.kt          UI state: selected day, derived day view, dashboard
-  MainActivity.kt          single activity; reloads the folder on resume
+core/     pure JVM — shared by :app and :cli
   data/
-    Models.kt              StrengthSet, CardioEntry, sessions, units, formatting
-    Food.kt                FoodEntry, purpose and the healthy-to-indulgent scale
-    Csv.kt                 CSV reader/writer, header-addressed rows
-    CsvStore.kt            all folder I/O through the Storage Access Framework
-    Repo.kt                in-memory source of truth with CSV write-through
-    Prefs.kt               settings
+    Models.kt       StrengthSet, CardioEntry, sessions, units, formatting
+    Food.kt         FoodEntry, purpose, the healthy-to-indulgent scale
+    Settings.kt     preferences as a plain value type
+    Csv.kt          CSV reader/writer, header-addressed rows
+    CsvFormat.kt    file names, headers, row <-> text. The format, with no I/O
+    Catalog.kt      name matching, canonical spelling, catalog rebuilding
+    DateFormat.kt   "3 days ago" and friends
   logic/
-    Overload.kt            the progression engine
-    Stats.kt               dashboard aggregates
-  ui/                      Compose screens: Day, Log, Exercises, detail, Dashboard, Settings
-app/src/test/              66 unit tests, mostly on Overload, Stats and food
+    Overload.kt     the progression engine
+    Stats.kt        dashboard aggregates
+  85 unit tests
+
+app/      Android
+  data/CsvStore.kt  folder I/O through the Storage Access Framework
+  data/Repo.kt      in-memory source of truth with CSV write-through
+  data/Prefs.kt     SharedPreferences
+  ui/               Compose screens: Day, Log, Library, detail, Dashboard, Settings
+
+cli/      desktop
+  Folder.kt         the same folder through java.io.File
+  Main.kt           commands, matching, help
 ```
 
 Design notes worth knowing if you change things:
@@ -211,6 +255,8 @@ Design notes worth knowing if you change things:
   Switching kg/lb never rewrites history.
 - **Everything is in memory.** A few years of training is well under a megabyte, so the repo
   holds the full data set and rewrites only the months a change touched.
+- **Nothing in `:core` may import `android.*`.** That rule is the whole reason the CLI
+  exists without a second implementation of anything.
 - **Estimated 1RM is Epley** (`weight × (1 + reps/30)`), used to compare sets and detect
   improvement. Unweighted sets compare on reps instead.
 - **Food counts are quantity-weighted.** `qty` means occurrences, never portions: two

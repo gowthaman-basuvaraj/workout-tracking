@@ -30,6 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.data.agoLabel
+import com.gowthaman.workout.data.monthLabel
+import com.gowthaman.workout.data.shortLabel
+import com.gowthaman.workout.data.tinyLabel
+import com.gowthaman.workout.data.weekdayLabel
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.fmt

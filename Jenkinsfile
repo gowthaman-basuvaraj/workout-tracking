@@ -96,11 +96,15 @@ pipeline {
 
         stage('Build & Test') {
             steps {
-                sh label: 'Gradle assembleDebug + unit tests', script: '''
+                sh label: 'Gradle unit tests + debug APK + CLI jar', script: '''
                     set -eu
                     echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
                     chmod +x gradlew
-                    ./gradlew --no-daemon --stacktrace clean testDebugUnitTest assembleDebug
+                    # :core carries the logic the app and the CLI share, so its tests are
+                    # the ones that matter most; :cli:jar is the desktop logger.
+                    ./gradlew --no-daemon --stacktrace clean \
+                        :core:test :cli:test :app:testDebugUnitTest \
+                        assembleDebug :cli:jar
                 '''
             }
         }
@@ -138,11 +142,12 @@ pipeline {
 
     post {
         always {
-            junit testResults: 'app/build/test-results/testDebugUnitTest/*.xml',
+            junit testResults: '**/build/test-results/**/*.xml',
                   allowEmptyResults: true
         }
         success {
             archiveArtifacts artifacts: 'app/build/outputs/apk/**/*.apk', fingerprint: true
+            archiveArtifacts artifacts: 'cli/build/libs/jotter.jar', fingerprint: true
             // Release builds are minified, so keep the R8 mapping — without it a production
             // stack trace is unreadable, and it is not reproducible from a later build.
             archiveArtifacts artifacts: 'app/build/outputs/mapping/release/mapping.txt',

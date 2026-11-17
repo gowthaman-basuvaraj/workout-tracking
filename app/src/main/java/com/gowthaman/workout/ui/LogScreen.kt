@@ -44,6 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.cardioOf
+import com.gowthaman.workout.data.agoLabel
+import com.gowthaman.workout.data.fullLabel
+import com.gowthaman.workout.data.relativeLabel
+import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef

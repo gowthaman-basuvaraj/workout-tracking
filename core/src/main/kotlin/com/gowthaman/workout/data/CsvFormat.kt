@@ -1,0 +1,225 @@
+package com.gowthaman.workout.data
+
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.util.UUID
+
+/**
+ * The on-disk format: file names, headers, and how a row becomes text and back.
+ *
+ * Deliberately free of any I/O. The phone reaches the folder through the Storage Access
+ * Framework and the desktop CLI through java.io.File, but both go through here, so there
+ * is exactly one definition of what a Jotter CSV looks like.
+ */
+object CsvFormat {
+
+    const val STRENGTH_PREFIX = "strength-"
+    const val CARDIO_PREFIX = "cardio-"
+    const val FOOD_PREFIX = "food-"
+    const val CATALOG_FILE = "exercises.csv"
+    const val FOOD_CATALOG_FILE = "foods.csv"
+    const val EXT = ".csv"
+
+    val STRENGTH_HEADER = listOf(
+        "id", "date", "exercise", "set_no", "reps",
+        "weight", "unit", "bodyweight", "notes", "logged_at",
+    )
+    val CARDIO_HEADER = listOf(
+        "id", "date", "activity", "duration_sec", "distance", "dist_unit", "notes", "logged_at",
+    )
+    val FOOD_HEADER = listOf(
+        "id", "date", "item", "purpose", "scale", "qty", "notes", "logged_at",
+    )
+    val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
+    val FOOD_CATALOG_HEADER = listOf("name", "purpose", "scale", "created_at", "last_used", "uses")
+
+    private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+
+    fun newId(): String = UUID.randomUUID().toString().replace("-", "").take(12)
+
+    fun monthSuffix(month: YearMonth): String =
+        String.format(Locale.US, "%04d-%02d", month.year, month.monthValue)
+
+    fun strengthFile(month: YearMonth): String = STRENGTH_PREFIX + monthSuffix(month) + EXT
+    fun cardioFile(month: YearMonth): String = CARDIO_PREFIX + monthSuffix(month) + EXT
+    fun foodFile(month: YearMonth): String = FOOD_PREFIX + monthSuffix(month) + EXT
+
+    fun parseDate(raw: String): LocalDate? =
+        runCatching { LocalDate.parse(raw.trim(), ISO) }.getOrNull()
+
+    /**
+     * Sync tools leave "...sync-conflict..." copies beside the original; counting them
+     * would double every total, so they are skipped everywhere a folder is read.
+     */
+    fun isConflictCopy(name: String): Boolean = name.contains("conflict", ignoreCase = true)
+
+    // ------------------------------------------------------------------- reading
+
+    fun parseStrength(text: String): List<StrengthSet> = parseCsv(text).mapNotNull { r ->
+        val date = parseDate(r.str("date")) ?: return@mapNotNull null
+        val exercise = r.str("exercise").trim()
+        if (exercise.isEmpty()) return@mapNotNull null
+        StrengthSet(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            exercise = exercise,
+            setNo = r.int("set_no", 1),
+            reps = r.int("reps"),
+            weight = r.double("weight"),
+            unit = r.str("unit", Units.KG).ifBlank { Units.KG },
+            bodyweight = r.bool("bodyweight"),
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseCardio(text: String): List<CardioEntry> = parseCsv(text).mapNotNull { r ->
+        val date = parseDate(r.str("date")) ?: return@mapNotNull null
+        val activity = r.str("activity").trim()
+        if (activity.isEmpty()) return@mapNotNull null
+        CardioEntry(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            activity = activity,
+            durationSec = r.int("duration_sec"),
+            distance = r.double("distance"),
+            distUnit = r.str("dist_unit", Units.KM).ifBlank { Units.KM },
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseFood(text: String): List<FoodEntry> = parseCsv(text).mapNotNull { r ->
+        val date = parseDate(r.str("date")) ?: return@mapNotNull null
+        val item = r.str("item").trim()
+        if (item.isEmpty()) return@mapNotNull null
+        FoodEntry(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            item = item,
+            purpose = Purpose.fromName(r.str("purpose")),
+            scale = FoodScale.parse(r.str("scale")),
+            qty = r.int("qty", 1).coerceAtLeast(1),
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    fun parseCatalog(text: String): List<ExerciseDef> = parseCsv(text).mapNotNull { r ->
+        val name = r.str("name").trim()
+        if (name.isEmpty()) return@mapNotNull null
+        ExerciseDef(
+            name = name,
+            kind = if (r.str("type").equals(Kind.CARDIO.name, ignoreCase = true)) Kind.CARDIO
+            else Kind.STRENGTH,
+            createdAt = r.long("created_at"),
+            lastUsed = parseDate(r.str("last_used")),
+            useCount = r.int("uses"),
+        )
+    }
+
+    fun parseFoodCatalog(text: String): List<FoodDef> = parseCsv(text).mapNotNull { r ->
+        val name = r.str("name").trim()
+        if (name.isEmpty()) return@mapNotNull null
+        FoodDef(
+            name = name,
+            purpose = Purpose.fromName(r.str("purpose")),
+            scale = FoodScale.parse(r.str("scale")),
+            createdAt = r.long("created_at"),
+            lastUsed = parseDate(r.str("last_used")),
+            useCount = r.int("uses"),
+        )
+    }
+
+    // ------------------------------------------------------------------- writing
+
+    fun renderStrength(rows: List<StrengthSet>): String = buildString {
+        append(Csv.row(STRENGTH_HEADER)).append('\n')
+        rows.sortedWith(compareBy({ it.date }, { it.exercise }, { it.setNo })).forEach { s ->
+            append(strengthRow(s)).append('\n')
+        }
+    }
+
+    fun renderCardio(rows: List<CardioEntry>): String = buildString {
+        append(Csv.row(CARDIO_HEADER)).append('\n')
+        rows.sortedWith(compareBy({ it.date }, { it.activity })).forEach { c ->
+            append(cardioRow(c)).append('\n')
+        }
+    }
+
+    fun renderFood(rows: List<FoodEntry>): String = buildString {
+        append(Csv.row(FOOD_HEADER)).append('\n')
+        rows.sortedWith(compareBy({ it.date }, { it.loggedAt })).forEach { f ->
+            append(foodRow(f)).append('\n')
+        }
+    }
+
+    fun renderCatalog(defs: List<ExerciseDef>): String = buildString {
+        append(Csv.row(CATALOG_HEADER)).append('\n')
+        defs.sortedBy { catalogKey(it.name) }.forEach { d ->
+            append(
+                Csv.row(
+                    d.name,
+                    d.kind.name,
+                    d.createdAt.toString(),
+                    d.lastUsed?.toString().orEmpty(),
+                    d.useCount.toString(),
+                )
+            ).append('\n')
+        }
+    }
+
+    fun renderFoodCatalog(defs: List<FoodDef>): String = buildString {
+        append(Csv.row(FOOD_CATALOG_HEADER)).append('\n')
+        defs.sortedBy { catalogKey(it.name) }.forEach { d ->
+            append(
+                Csv.row(
+                    d.name,
+                    d.purpose.name,
+                    d.scale.level.toString(),
+                    d.createdAt.toString(),
+                    d.lastUsed?.toString().orEmpty(),
+                    d.useCount.toString(),
+                )
+            ).append('\n')
+        }
+    }
+
+    /** A single record, with no header — what the CLI appends to an existing file. */
+    fun strengthRow(s: StrengthSet): String = Csv.row(
+        s.id,
+        s.date.toString(),
+        s.exercise,
+        s.setNo.toString(),
+        s.reps.toString(),
+        s.weight.fmt(2),
+        s.unit,
+        s.bodyweight.toString(),
+        Csv.clean(s.notes),
+        s.loggedAt.toString(),
+    )
+
+    fun cardioRow(c: CardioEntry): String = Csv.row(
+        c.id,
+        c.date.toString(),
+        c.activity,
+        c.durationSec.toString(),
+        c.distance.fmt(3),
+        c.distUnit,
+        Csv.clean(c.notes),
+        c.loggedAt.toString(),
+    )
+
+    fun foodRow(f: FoodEntry): String = Csv.row(
+        f.id,
+        f.date.toString(),
+        f.item,
+        f.purpose.name,
+        f.scale.level.toString(),
+        f.qty.toString(),
+        Csv.clean(f.notes),
+        f.loggedAt.toString(),
+    )
+}

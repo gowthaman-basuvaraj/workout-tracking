@@ -1,4 +1,4 @@
-package com.gowthaman.workout.ui
+package com.gowthaman.workout.data
 
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

@@ -154,7 +154,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         val row = StrengthSet(
             id = CsvStore.newId(),
             date = date,
-            exercise = canonicalName(name, Kind.STRENGTH),
+            exercise = Catalog.canonical(_catalog.value.map { it.name }, name),
             setNo = nextSetNo,
             reps = reps.coerceAtLeast(0),
             weight = weight.coerceAtLeast(0.0),
@@ -214,7 +214,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         val row = CardioEntry(
             id = CsvStore.newId(),
             date = date,
-            activity = canonicalName(name, Kind.CARDIO),
+            activity = Catalog.canonical(_catalog.value.map { it.name }, name),
             durationSec = durationSec.coerceAtLeast(0),
             distance = distance.coerceAtLeast(0.0),
             distUnit = prefs.current.distanceUnit,
@@ -256,7 +256,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         val row = FoodEntry(
             id = CsvStore.newId(),
             date = date,
-            item = canonicalFoodName(name),
+            item = Catalog.canonical(_foodCatalog.value.map { it.name }, name),
             purpose = purpose,
             scale = scale,
             qty = qty.coerceAtLeast(1),
@@ -319,34 +319,9 @@ class Repo(context: Context, private val prefs: Prefs) {
         touched
     }
 
-    /**
-     * Rebuilds the food picker from logged data. An item's remembered purpose and scale
-     * come from its most recent entry, so correcting one entry updates the default too.
-     */
     private fun refreshFoodCatalog() {
-        val byKey = LinkedHashMap<String, FoodDef>()
-        storedFoodOnly.forEach { def ->
-            byKey[catalogKey(def.name)] = def.copy(useCount = 0, lastUsed = null)
-        }
-        _food.value.groupBy { catalogKey(it.item) }.forEach { (key, rows) ->
-            val newest = rows.maxByOrNull { it.loggedAt } ?: rows.last()
-            val existing = byKey[key]
-            byKey[key] = FoodDef(
-                name = existing?.name ?: newest.item,
-                purpose = newest.purpose,
-                scale = newest.scale,
-                createdAt = existing?.createdAt?.takeIf { it > 0L } ?: rows.minOf { it.loggedAt },
-                lastUsed = rows.maxOf { it.date },
-                useCount = rows.sumOf { it.qty },
-            )
-        }
-        _foodCatalog.value = byKey.values.sortedBy { catalogKey(it.name) }
+        _foodCatalog.value = Catalog.rebuildFood(storedFoodOnly, _food.value)
         storedFoodOnly = _foodCatalog.value
-    }
-
-    private fun canonicalFoodName(name: String): String {
-        val key = catalogKey(name)
-        return _foodCatalog.value.firstOrNull { catalogKey(it.name) == key }?.name ?: name
     }
 
     // ---------------------------------------------------------------- catalog
@@ -403,50 +378,9 @@ class Repo(context: Context, private val prefs: Prefs) {
         touched
     }
 
-    /**
-     * Rebuilds the picker list from logged data, merged with names that exist only in
-     * `exercises.csv`. Usage counts and last-used dates always come from the real data, so
-     * the catalog can never drift out of sync with the logs.
-     */
     private fun refreshCatalog() {
-        val byKey = LinkedHashMap<String, ExerciseDef>()
-
-        storedOnly.forEach { def -> byKey[catalogKey(def.name)] = def.copy(useCount = 0, lastUsed = null) }
-
-        _strength.value.groupBy { catalogKey(it.exercise) }.forEach { (key, rows) ->
-            val newest = rows.maxByOrNull { it.loggedAt } ?: rows.first()
-            val existing = byKey[key]
-            byKey[key] = ExerciseDef(
-                name = existing?.name ?: newest.exercise,
-                kind = Kind.STRENGTH,
-                createdAt = existing?.createdAt?.takeIf { it > 0L }
-                    ?: rows.minOf { it.loggedAt },
-                lastUsed = rows.maxOf { it.date },
-                useCount = rows.size,
-            )
-        }
-
-        _cardio.value.groupBy { catalogKey(it.activity) }.forEach { (key, rows) ->
-            val newest = rows.maxByOrNull { it.loggedAt } ?: rows.first()
-            val existing = byKey[key]
-            byKey[key] = ExerciseDef(
-                name = existing?.name ?: newest.activity,
-                kind = Kind.CARDIO,
-                createdAt = existing?.createdAt?.takeIf { it > 0L } ?: rows.minOf { it.loggedAt },
-                lastUsed = rows.maxOf { it.date },
-                useCount = rows.size,
-            )
-        }
-
-        _catalog.value = byKey.values.sortedBy { catalogKey(it.name) }
+        _catalog.value = Catalog.rebuildExercises(storedOnly, _strength.value, _cardio.value)
         storedOnly = _catalog.value
-    }
-
-    /** Reuses the spelling already in the catalog, so casing stays consistent per exercise. */
-    private fun canonicalName(name: String, kind: Kind): String {
-        val key = catalogKey(name)
-        return _catalog.value.firstOrNull { catalogKey(it.name) == key && it.kind == kind }?.name
-            ?: name
     }
 
     // --------------------------------------------------------------- plumbing

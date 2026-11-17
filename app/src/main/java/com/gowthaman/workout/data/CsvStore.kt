@@ -3,24 +3,17 @@ package com.gowthaman.workout.data
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
-import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import java.util.UUID
 
 /**
- * Reads and writes the entire data set as plain CSV inside a user-chosen folder.
+ * Reads and writes the data set through the Storage Access Framework.
  *
- * Layout (everything sits directly in the selected folder):
- *   strength-YYYY-MM.csv   one row per set
- *   cardio-YYYY-MM.csv     one row per cardio session
- *   exercises.csv          the auto-populated exercise catalog
- *   README.md, analyze.py  written once, to document the schema for desktop analysis
+ * This class is only I/O: which document to open, and how to read or truncate it. What a
+ * row looks like lives in [CsvFormat] in :core, shared with the desktop CLI so the two
+ * can never disagree about the file format.
  *
- * Month-partitioned files are what make the folder safe to put under Syncthing/Dropbox:
- * logging today only ever rewrites the current month, and there is no database or lock
- * file for a sync tool to corrupt.
+ * Month-partitioned files are what make the folder safe under Syncthing/Dropbox: logging
+ * today only rewrites the current month, and there is no database or lock file.
  */
 class CsvStore(context: Context) {
 
@@ -49,22 +42,19 @@ class CsvStore(context: Context) {
         for (file in root.listFiles()) {
             if (!file.isFile) continue
             val name = file.name ?: continue
-            // Sync tools drop "...sync-conflict..." copies next to the original; ignoring
-            // them keeps a conflicted folder from double-counting every set.
-            if (name.contains("conflict", ignoreCase = true)) continue
+            if (CsvFormat.isConflictCopy(name)) continue
             when {
-                name.startsWith(STRENGTH_PREFIX) && name.endsWith(EXT) ->
-                    strength += parseStrength(readText(file.uri))
-                name.startsWith(CARDIO_PREFIX) && name.endsWith(EXT) ->
-                    cardio += parseCardio(readText(file.uri))
-                // Checked before the "food-" prefix: "foods.csv" is the catalog, and
-                // "food-2026-11.csv" is a month of entries.
-                name == FOOD_CATALOG_FILE ->
-                    foodCatalog = parseFoodCatalog(readText(file.uri))
-                name.startsWith(FOOD_PREFIX) && name.endsWith(EXT) ->
-                    food += parseFood(readText(file.uri))
-                name == CATALOG_FILE ->
-                    catalog = parseCatalog(readText(file.uri))
+                name == CsvFormat.FOOD_CATALOG_FILE ->
+                    foodCatalog = CsvFormat.parseFoodCatalog(readText(file.uri))
+                name == CsvFormat.CATALOG_FILE ->
+                    catalog = CsvFormat.parseCatalog(readText(file.uri))
+                !name.endsWith(CsvFormat.EXT) -> Unit
+                name.startsWith(CsvFormat.STRENGTH_PREFIX) ->
+                    strength += CsvFormat.parseStrength(readText(file.uri))
+                name.startsWith(CsvFormat.CARDIO_PREFIX) ->
+                    cardio += CsvFormat.parseCardio(readText(file.uri))
+                name.startsWith(CsvFormat.FOOD_PREFIX) ->
+                    food += CsvFormat.parseFood(readText(file.uri))
             }
         }
 
@@ -82,199 +72,32 @@ class CsvStore(context: Context) {
             resolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
         }.getOrNull().orEmpty()
 
-    private fun parseStrength(text: String): List<StrengthSet> = parseCsv(text).mapNotNull { r ->
-        val date = r.str("date").toLocalDateOrNull() ?: return@mapNotNull null
-        val exercise = r.str("exercise").trim()
-        if (exercise.isEmpty()) return@mapNotNull null
-        StrengthSet(
-            id = r.str("id").ifBlank { newId() },
-            date = date,
-            exercise = exercise,
-            setNo = r.int("set_no", 1),
-            reps = r.int("reps"),
-            weight = r.double("weight"),
-            unit = r.str("unit", Units.KG).ifBlank { Units.KG },
-            bodyweight = r.bool("bodyweight"),
-            notes = r.str("notes"),
-            loggedAt = r.long("logged_at"),
-        )
-    }
-
-    private fun parseCardio(text: String): List<CardioEntry> = parseCsv(text).mapNotNull { r ->
-        val date = r.str("date").toLocalDateOrNull() ?: return@mapNotNull null
-        val activity = r.str("activity").trim()
-        if (activity.isEmpty()) return@mapNotNull null
-        CardioEntry(
-            id = r.str("id").ifBlank { newId() },
-            date = date,
-            activity = activity,
-            durationSec = r.int("duration_sec"),
-            distance = r.double("distance"),
-            distUnit = r.str("dist_unit", Units.KM).ifBlank { Units.KM },
-            notes = r.str("notes"),
-            loggedAt = r.long("logged_at"),
-        )
-    }
-
-    private fun parseFood(text: String): List<FoodEntry> = parseCsv(text).mapNotNull { r ->
-        val date = r.str("date").toLocalDateOrNull() ?: return@mapNotNull null
-        val item = r.str("item").trim()
-        if (item.isEmpty()) return@mapNotNull null
-        FoodEntry(
-            id = r.str("id").ifBlank { newId() },
-            date = date,
-            item = item,
-            purpose = Purpose.fromName(r.str("purpose")),
-            scale = FoodScale.parse(r.str("scale")),
-            qty = r.int("qty", 1).coerceAtLeast(1),
-            notes = r.str("notes"),
-            loggedAt = r.long("logged_at"),
-        )
-    }
-
-    private fun parseFoodCatalog(text: String): List<FoodDef> = parseCsv(text).mapNotNull { r ->
-        val name = r.str("name").trim()
-        if (name.isEmpty()) return@mapNotNull null
-        FoodDef(
-            name = name,
-            purpose = Purpose.fromName(r.str("purpose")),
-            scale = FoodScale.parse(r.str("scale")),
-            createdAt = r.long("created_at"),
-            lastUsed = r.str("last_used").toLocalDateOrNull(),
-            useCount = r.int("uses"),
-        )
-    }
-
-    private fun parseCatalog(text: String): List<ExerciseDef> = parseCsv(text).mapNotNull { r ->
-        val name = r.str("name").trim()
-        if (name.isEmpty()) return@mapNotNull null
-        ExerciseDef(
-            name = name,
-            kind = if (r.str("type").equals(Kind.CARDIO.name, ignoreCase = true)) Kind.CARDIO
-            else Kind.STRENGTH,
-            createdAt = r.long("created_at"),
-            lastUsed = r.str("last_used").toLocalDateOrNull(),
-            useCount = r.int("uses"),
-        )
-    }
-
     // ------------------------------------------------------------------ writing
 
-    fun saveStrengthMonth(treeUri: Uri, month: YearMonth, rows: List<StrengthSet>) {
-        val name = STRENGTH_PREFIX + month.fileSuffix() + EXT
-        if (rows.isEmpty()) {
-            deleteIfPresent(treeUri, name)
-            return
-        }
-        val body = buildString {
-            append(Csv.row(STRENGTH_HEADER)).append('\n')
-            rows.sortedWith(compareBy({ it.date }, { it.exercise }, { it.setNo })).forEach { s ->
-                append(
-                    Csv.row(
-                        s.id,
-                        s.date.toString(),
-                        s.exercise,
-                        s.setNo.toString(),
-                        s.reps.toString(),
-                        s.weight.fmt(2),
-                        s.unit,
-                        s.bodyweight.toString(),
-                        Csv.clean(s.notes),
-                        s.loggedAt.toString(),
-                    )
-                ).append('\n')
-            }
-        }
-        writeText(treeUri, name, MIME_CSV, body)
-    }
+    fun saveStrengthMonth(treeUri: Uri, month: YearMonth, rows: List<StrengthSet>) =
+        writeOrDelete(treeUri, CsvFormat.strengthFile(month), rows) { CsvFormat.renderStrength(it) }
 
-    fun saveCardioMonth(treeUri: Uri, month: YearMonth, rows: List<CardioEntry>) {
-        val name = CARDIO_PREFIX + month.fileSuffix() + EXT
-        if (rows.isEmpty()) {
-            deleteIfPresent(treeUri, name)
-            return
-        }
-        val body = buildString {
-            append(Csv.row(CARDIO_HEADER)).append('\n')
-            rows.sortedWith(compareBy({ it.date }, { it.activity })).forEach { c ->
-                append(
-                    Csv.row(
-                        c.id,
-                        c.date.toString(),
-                        c.activity,
-                        c.durationSec.toString(),
-                        c.distance.fmt(3),
-                        c.distUnit,
-                        Csv.clean(c.notes),
-                        c.loggedAt.toString(),
-                    )
-                ).append('\n')
-            }
-        }
-        writeText(treeUri, name, MIME_CSV, body)
-    }
+    fun saveCardioMonth(treeUri: Uri, month: YearMonth, rows: List<CardioEntry>) =
+        writeOrDelete(treeUri, CsvFormat.cardioFile(month), rows) { CsvFormat.renderCardio(it) }
 
-    fun saveCatalog(treeUri: Uri, defs: List<ExerciseDef>) {
-        val body = buildString {
-            append(Csv.row(CATALOG_HEADER)).append('\n')
-            defs.sortedBy { catalogKey(it.name) }.forEach { d ->
-                append(
-                    Csv.row(
-                        d.name,
-                        d.kind.name,
-                        d.createdAt.toString(),
-                        d.lastUsed?.toString().orEmpty(),
-                        d.useCount.toString(),
-                    )
-                ).append('\n')
-            }
-        }
-        writeText(treeUri, CATALOG_FILE, MIME_CSV, body)
-    }
+    fun saveFoodMonth(treeUri: Uri, month: YearMonth, rows: List<FoodEntry>) =
+        writeOrDelete(treeUri, CsvFormat.foodFile(month), rows) { CsvFormat.renderFood(it) }
 
-    fun saveFoodMonth(treeUri: Uri, month: YearMonth, rows: List<FoodEntry>) {
-        val name = FOOD_PREFIX + month.fileSuffix() + EXT
-        if (rows.isEmpty()) {
-            deleteIfPresent(treeUri, name)
-            return
-        }
-        val body = buildString {
-            append(Csv.row(FOOD_HEADER)).append('\n')
-            rows.sortedWith(compareBy({ it.date }, { it.loggedAt })).forEach { f ->
-                append(
-                    Csv.row(
-                        f.id,
-                        f.date.toString(),
-                        f.item,
-                        f.purpose.name,
-                        f.scale.level.toString(),
-                        f.qty.toString(),
-                        Csv.clean(f.notes),
-                        f.loggedAt.toString(),
-                    )
-                ).append('\n')
-            }
-        }
-        writeText(treeUri, name, MIME_CSV, body)
-    }
+    fun saveCatalog(treeUri: Uri, defs: List<ExerciseDef>) =
+        writeText(treeUri, CsvFormat.CATALOG_FILE, MIME_CSV, CsvFormat.renderCatalog(defs))
 
-    fun saveFoodCatalog(treeUri: Uri, defs: List<FoodDef>) {
-        val body = buildString {
-            append(Csv.row(FOOD_CATALOG_HEADER)).append('\n')
-            defs.sortedBy { catalogKey(it.name) }.forEach { d ->
-                append(
-                    Csv.row(
-                        d.name,
-                        d.purpose.name,
-                        d.scale.level.toString(),
-                        d.createdAt.toString(),
-                        d.lastUsed?.toString().orEmpty(),
-                        d.useCount.toString(),
-                    )
-                ).append('\n')
-            }
-        }
-        writeText(treeUri, FOOD_CATALOG_FILE, MIME_CSV, body)
+    fun saveFoodCatalog(treeUri: Uri, defs: List<FoodDef>) =
+        writeText(treeUri, CsvFormat.FOOD_CATALOG_FILE, MIME_CSV, CsvFormat.renderFoodCatalog(defs))
+
+    /** An emptied month leaves no file behind rather than a lone header. */
+    private fun <T> writeOrDelete(
+        treeUri: Uri,
+        name: String,
+        rows: List<T>,
+        render: (List<T>) -> String,
+    ) {
+        if (rows.isEmpty()) deleteIfPresent(treeUri, name)
+        else writeText(treeUri, name, MIME_CSV, render(rows))
     }
 
     /**
@@ -309,12 +132,9 @@ class CsvStore(context: Context) {
             ?: error("Data folder is not reachable. Re-select it in Settings.")
 
     /**
-     * Looks a file up by its base name.
-     *
-     * Document providers may append an extension of their own on create — ask for
-     * `analyze.py` with a mime type they map to `.txt` and you get `analyze.py.txt` back.
-     * Matching on the stem means the next run finds that file instead of creating a
-     * second one beside it on every single resume.
+     * Looks a file up by its base name, tolerating providers that append an extension of
+     * their own on create (ask for analyze.py, get analyze.py.txt), so the next run finds
+     * that file instead of creating a second one beside it.
      */
     private fun findByName(root: DocumentFile, name: String): DocumentFile? {
         val stem = name.substringBeforeLast('.')
@@ -344,43 +164,15 @@ class CsvStore(context: Context) {
     }
 
     companion object {
-        const val STRENGTH_PREFIX = "strength-"
-        const val CARDIO_PREFIX = "cardio-"
-        const val CATALOG_FILE = "exercises.csv"
-        const val FOOD_PREFIX = "food-"
-        const val FOOD_CATALOG_FILE = "foods.csv"
-
-        private const val EXT = ".csv"
         private const val MIME_CSV = "text/csv"
         private const val MIME_MD = "text/markdown"
         private const val MIME_PYTHON = "text/x-python"
         private const val DOC_README = "README.md"
         private const val DOC_SCRIPT = "analyze.py"
+
         /** Bumped whenever the generated docs change; see refreshDoc. */
         private const val DOCS_MARKER = "jotter-docs v3"
 
-        private val STRENGTH_HEADER = listOf(
-            "id", "date", "exercise", "set_no", "reps",
-            "weight", "unit", "bodyweight", "notes", "logged_at",
-        )
-        private val CARDIO_HEADER = listOf(
-            "id", "date", "activity", "duration_sec", "distance", "dist_unit", "notes", "logged_at",
-        )
-        private val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
-        private val FOOD_HEADER = listOf(
-            "id", "date", "item", "purpose", "scale", "qty", "notes", "logged_at",
-        )
-        private val FOOD_CATALOG_HEADER = listOf(
-            "name", "purpose", "scale", "created_at", "last_used", "uses",
-        )
-
-        private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
-
-        fun newId(): String = UUID.randomUUID().toString().replace("-", "").take(12)
-
-        fun YearMonth.fileSuffix(): String = String.format(Locale.US, "%04d-%02d", year, monthValue)
-
-        fun String.toLocalDateOrNull(): LocalDate? =
-            runCatching { LocalDate.parse(trim(), ISO) }.getOrNull()
+        fun newId(): String = CsvFormat.newId()
     }
 }
