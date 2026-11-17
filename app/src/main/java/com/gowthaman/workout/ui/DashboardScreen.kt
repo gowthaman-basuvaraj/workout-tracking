@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +48,7 @@ import com.gowthaman.workout.logic.Bucket
 import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.Stats
+import com.gowthaman.workout.logic.Summary
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -57,6 +61,7 @@ fun DashboardScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val unit = settings.weightUnit
     val period = data.period
+    val context = LocalContext.current
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -64,11 +69,20 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
-            Text(
-                "Dashboard",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 2.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Dashboard",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(bottom = 2.dp),
+                )
+                if (data.hasData) {
+                    SmallIconButton(Icons.Filled.Share, "Share this summary") {
+                        shareSummary(context, Summary.text(data, settings))
+                    }
+                }
+            }
         }
 
         item {
@@ -320,21 +334,31 @@ fun DashboardScreen(
     }
 }
 
+/**
+ * Hands the summary to the system share sheet as plain text.
+ *
+ * Text rather than an image on purpose: it pastes into a message, an email or your own
+ * notes, and it stays readable by whoever receives it. Nothing is sent anywhere until the
+ * share sheet is used, and the destination is always the reader's choice.
+ */
+private fun shareSummary(context: android.content.Context, text: String) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Share summary"))
+}
+
 @Composable
 private fun PeriodSelector(selected: Period, onSelect: (Period) -> Unit) {
-    // Scrolls rather than wraps, so a large system font never stacks a chip's label one
-    // letter per line the way a fixed Row does.
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    // Wraps rather than scrolls: a period hidden off the right edge is a period you
+    // never discover.
+    ChipFlow {
         Period.entries.forEach { period ->
             FilterChip(
                 selected = period == selected,
                 onClick = { onSelect(period) },
-                label = { Text(period.label) },
+                label = { Text(period.label, maxLines = 1) },
             )
         }
     }

@@ -120,10 +120,7 @@ fun LogScreen(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            ChipFlow {
                 FilterChip(
                     selected = kind == Kind.STRENGTH,
                     onClick = { kind = Kind.STRENGTH; exercise = "" },

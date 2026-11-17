@@ -52,6 +52,11 @@ the previous window is always like-for-like and the page never looks empty on th
 the month. The volume chart re-buckets to stay readable — 7 daily bars for a week, 8 weekly
 bars for a month, 6 monthly bars for a quarter, 12 for a year.
 
+**Share.** The share icon hands the window's figures to the system share sheet as plain
+text — the same summary `jotter summary` prints, built from the same code. Text rather
+than an image so it pastes into a message, an email or your own notes and stays readable.
+Nothing leaves the device until you pick a destination.
+
 Three things deliberately ignore the window: the streak and the all-time footer are
 absolute, and the **due for an overload** list follows your overload frequency setting
 instead.
@@ -167,6 +172,7 @@ jotter cardio run --time 31 --dist 5.3
 jotter sleep 7h30 --ok             # 7h30, 7:30, 7.5 and 450m all parse
 jotter stress deadline             # direction and weight remembered per item
 jotter ls food cof                 # what names exist
+jotter summary                     # the same text the share button produces
 jotter today                       # what is logged
 jotter undo                        # remove what you just logged
 jotter help set                    # per-command help
@@ -267,8 +273,9 @@ core/     pure JVM — shared by :app and :cli
     DateFormat.kt   "3 days ago" and friends
   logic/
     Overload.kt     the progression engine
+    Summary.kt      the shareable text, shared by the share sheet and the CLI
     Stats.kt        dashboard aggregates
-  107 unit tests
+  114 unit tests
 
 app/      Android
   data/CsvStore.kt  folder I/O through the Storage Access Framework

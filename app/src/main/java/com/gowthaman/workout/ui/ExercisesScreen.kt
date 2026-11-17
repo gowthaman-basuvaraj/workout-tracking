@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Clear
@@ -43,6 +45,9 @@ import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.StressDef
+import com.gowthaman.workout.data.StressDirection
+import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import java.time.LocalDate
@@ -70,6 +75,19 @@ private fun ExerciseDef.toRow(): LibraryRow {
     )
 }
 
+private fun StressDef.toRow(): LibraryRow {
+    val last = lastUsed
+    val defaults = "${direction.label} / ${weight.label}"
+    return LibraryRow(
+        name = name,
+        kind = Kind.STRESS,
+        lastUsed = last,
+        useCount = useCount,
+        detail = if (last == null) "Never logged  ·  $defaults"
+        else "$useCount logged  ·  ${last.agoLabel()}  ·  $defaults",
+    )
+}
+
 private fun FoodDef.toRow(): LibraryRow {
     val last = lastUsed
     val defaults = "${purpose.label} · ${scale.label}"
@@ -90,14 +108,17 @@ fun ExercisesScreen(
 ) {
     val catalog by vm.catalog.collectAsStateWithLifecycle()
     val foodCatalog by vm.foodCatalog.collectAsStateWithLifecycle()
+    val stressCatalog by vm.stressCatalog.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf<Kind?>(null) }
     var showAdd by remember { mutableStateOf(false) }
     var editFood by remember { mutableStateOf<FoodDef?>(null) }
+    var editStress by remember { mutableStateOf<StressDef?>(null) }
 
-    val rows = remember(catalog, foodCatalog, query, filter) {
-        (catalog.map { it.toRow() } + foodCatalog.map { it.toRow() })
+    val rows = remember(catalog, foodCatalog, stressCatalog, query, filter) {
+        (catalog.map { it.toRow() } + foodCatalog.map { it.toRow() } +
+            stressCatalog.map { it.toRow() })
             .filter { filter == null || it.kind == filter }
             .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
             .sortedWith(
@@ -137,16 +158,12 @@ fun ExercisesScreen(
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         )
 
-        Row(
-            Modifier
-                .padding(horizontal = 14.dp, vertical = 2.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(filter == null, { filter = null }, label = { Text("All") })
-            FilterChip(filter == Kind.STRENGTH, { filter = Kind.STRENGTH }, label = { Text("Strength") })
-            FilterChip(filter == Kind.CARDIO, { filter = Kind.CARDIO }, label = { Text("Cardio") })
-            FilterChip(filter == Kind.FOOD, { filter = Kind.FOOD }, label = { Text("Food") })
+        ChipFlow(Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
+            FilterChip(filter == null, { filter = null }, label = { Text("All", maxLines = 1) })
+            FilterChip(filter == Kind.STRENGTH, { filter = Kind.STRENGTH }, label = { Text("Strength", maxLines = 1) })
+            FilterChip(filter == Kind.CARDIO, { filter = Kind.CARDIO }, label = { Text("Cardio", maxLines = 1) })
+            FilterChip(filter == Kind.FOOD, { filter = Kind.FOOD }, label = { Text("Food", maxLines = 1) })
+            FilterChip(filter == Kind.STRESS, { filter = Kind.STRESS }, label = { Text("Stress", maxLines = 1) })
         }
 
         Spacer(Modifier.height(6.dp))
@@ -154,11 +171,11 @@ fun ExercisesScreen(
 
         if (rows.isEmpty()) {
             EmptyState(
-                title = if (catalog.isEmpty() && foodCatalog.isEmpty()) "Your list is empty"
-                else "No matches",
-                body = if (catalog.isEmpty() && foodCatalog.isEmpty())
-                    "Exercises and foods appear here automatically the first time you log " +
-                        "them. Nothing to set up."
+                title = if (catalog.isEmpty() && foodCatalog.isEmpty() && stressCatalog.isEmpty())
+                    "Your list is empty" else "No matches",
+                body = if (catalog.isEmpty() && foodCatalog.isEmpty() && stressCatalog.isEmpty())
+                    "Names appear here automatically the first time you log them. " +
+                        "Nothing to set up."
                 else "Try a different search, or clear the filter.",
             )
         } else {
@@ -170,12 +187,14 @@ fun ExercisesScreen(
                     LibraryItem(
                         row = row,
                         onClick = {
-                            if (row.kind == Kind.FOOD) {
-                                editFood = foodCatalog.firstOrNull {
+                            when (row.kind) {
+                                Kind.FOOD -> editFood = foodCatalog.firstOrNull {
                                     catalogKey(it.name) == catalogKey(row.name)
                                 }
-                            } else {
-                                onOpenExercise(row.name)
+                                Kind.STRESS -> editStress = stressCatalog.firstOrNull {
+                                    catalogKey(it.name) == catalogKey(row.name)
+                                }
+                                else -> onOpenExercise(row.name)
                             }
                         },
                     )
@@ -194,6 +213,18 @@ fun ExercisesScreen(
             onAddFood = { name, purpose, scale ->
                 vm.addFoodName(name, purpose, scale); showAdd = false
             },
+            onAddStress = { name, direction, weight ->
+                vm.addStressName(name, direction, weight); showAdd = false
+            },
+        )
+    }
+
+    editStress?.let { def ->
+        StressItemDialog(
+            def = def,
+            onDismiss = { editStress = null },
+            onRename = { newName -> vm.renameStress(def.name, newName); editStress = null },
+            onDelete = { withHistory -> vm.deleteStressName(def.name, withHistory); editStress = null },
         )
     }
 
@@ -226,7 +257,11 @@ private fun LibraryItem(row: LibraryRow, onClick: () -> Unit) {
                 if (row.kind != Kind.STRENGTH) {
                     Spacer(Modifier.width(8.dp))
                     Pill(
-                        if (row.kind == Kind.CARDIO) "cardio" else "food",
+                        when (row.kind) {
+                            Kind.CARDIO -> "cardio"
+                            Kind.FOOD -> "food"
+                            else -> "stress"
+                        },
                         container = MaterialTheme.colorScheme.tertiaryContainer,
                         content = MaterialTheme.colorScheme.onTertiaryContainer,
                     )
@@ -251,17 +286,19 @@ private fun AddNameDialog(
     onDismiss: () -> Unit,
     onAddExercise: (String, Kind) -> Unit,
     onAddFood: (String, Purpose, FoodScale) -> Unit,
+    onAddStress: (String, StressDirection, StressWeight) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(Kind.STRENGTH) }
-    var purpose by remember { mutableStateOf(Purpose.DEFAULT) }
-    var scale by remember { mutableStateOf(FoodScale.DEFAULT) }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add a name") },
         text = {
-            Column {
+            // An AlertDialog does not shrink for the keyboard, so this stays deliberately
+            // short: name, kind, done. Scroll is insurance for large system fonts.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     "Optional — names are also added automatically when you log them.",
                     style = MaterialTheme.typography.bodySmall,
@@ -276,42 +313,101 @@ private fun AddNameDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(kind == Kind.STRENGTH, { kind = Kind.STRENGTH }, label = { Text("Strength") })
-                    FilterChip(kind == Kind.CARDIO, { kind = Kind.CARDIO }, label = { Text("Cardio") })
-                    FilterChip(kind == Kind.FOOD, { kind = Kind.FOOD }, label = { Text("Food") })
+                ChipFlow {
+                    FilterChip(kind == Kind.STRENGTH, { kind = Kind.STRENGTH }, label = { Text("Strength", maxLines = 1) })
+                    FilterChip(kind == Kind.CARDIO, { kind = Kind.CARDIO }, label = { Text("Cardio", maxLines = 1) })
+                    FilterChip(kind == Kind.FOOD, { kind = Kind.FOOD }, label = { Text("Food", maxLines = 1) })
+                    FilterChip(kind == Kind.STRESS, { kind = Kind.STRESS }, label = { Text("Stress", maxLines = 1) })
                 }
-                if (kind == Kind.FOOD) {
-                    Spacer(Modifier.height(12.dp))
-                    Text("Usual purpose", style = MaterialTheme.typography.labelMedium)
-                    ChipFlow {
-                        Purpose.entries.forEach {
-                            FilterChip(purpose == it, { purpose = it }, label = { Text(it.label) })
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Usual rating", style = MaterialTheme.typography.labelMedium)
-                    ChipFlow {
-                        FoodScale.entries.forEach {
-                            FilterChip(scale == it, { scale = it }, label = { Text(it.label) })
-                        }
-                    }
-                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "How it is usually logged — a food's purpose, a stress event's " +
+                        "direction — is remembered from the first time you log it.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (kind == Kind.FOOD) onAddFood(name, purpose, scale)
-                    else onAddExercise(name, kind)
+                    when (kind) {
+                        Kind.FOOD -> onAddFood(name, Purpose.DEFAULT, FoodScale.DEFAULT)
+                        Kind.STRESS -> onAddStress(name, StressDirection.DEFAULT, StressWeight.DEFAULT)
+                        else -> onAddExercise(name, kind)
+                    }
                 },
                 enabled = name.isNotBlank(),
             ) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun StressItemDialog(
+    def: StressDef,
+    onDismiss: () -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: (Boolean) -> Unit,
+) {
+    var name by remember { mutableStateOf(def.name) }
+    var confirmingDelete by remember { mutableStateOf(false) }
+    var alsoHistory by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(def.name) },
+        text = {
+            Column {
+                Text(
+                    buildString {
+                        append("${def.useCount} time${if (def.useCount == 1) "" else "s"} logged")
+                        def.lastUsed?.let { append(", last ${it.agoLabel()}") }
+                        append(".\nUsually a ${def.direction.label.lowercase()}, ")
+                        append("${def.weight.label.lowercase()}.")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Rename") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Renaming rewrites every past entry too.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                if (confirmingDelete) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = alsoHistory, onCheckedChange = { alsoHistory = it })
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Also delete everything logged for it",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (name.trim() != def.name && name.isNotBlank()) {
+                TextButton(onClick = { onRename(name) }) { Text("Rename") }
+            } else if (confirmingDelete) {
+                TextButton(onClick = { onDelete(alsoHistory) }) {
+                    Text(if (alsoHistory) "Delete everything" else "Remove name")
+                }
+            } else {
+                TextButton(onClick = { confirmingDelete = true }) { Text("Delete") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
 

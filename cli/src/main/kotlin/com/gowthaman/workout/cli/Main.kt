@@ -24,6 +24,7 @@ import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.logic.Stats
+import com.gowthaman.workout.logic.Summary
 import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -65,6 +66,7 @@ private fun run(raw: List<String>) {
         "undo" -> { args.takeCommand(); return undo(args) }
         "due" -> { args.takeCommand(); return due(args) }
         "settings", "config" -> { args.takeCommand(); return showSettings(args) }
+        "summary" -> { args.takeCommand(); return summary(args) }
         "food" -> { args.takeCommand(); return logFood(args, explicit = true) }
         "set", "lift" -> { args.takeCommand(); return logSet(args) }
         "cardio" -> { args.takeCommand(); return logCardio(args) }
@@ -642,6 +644,20 @@ private fun due(args: Args) {
     }
 }
 
+/** The same text the app's share button produces, built from the same code. */
+private fun summary(args: Args) {
+    val folder = resolveFolder(args)
+    println(
+        Summary.text(
+            Stats.build(
+                folder.strength, folder.cardio, folder.settings, LocalDate.now(),
+                folder.food, folder.sleep, folder.stress,
+            ),
+            folder.settings,
+        )
+    )
+}
+
 /** Shows the settings the app published, and makes clear they are not editable here. */
 private fun showSettings(args: Args) {
     val folder = resolveFolder(args)
@@ -730,6 +746,7 @@ USAGE
   jotter ls [what] [filter]    see what names exist
   jotter today [date]          show a day
   jotter due                   which lifts are due for an overload
+  jotter summary               everything in the window, as shareable text
   jotter settings              the settings the app published (read-only)
   jotter undo                  remove what you just logged
   jotter init <path>           remember where your data folder is
