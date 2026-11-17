@@ -47,8 +47,15 @@ class Repo(context: Context, private val prefs: Prefs) {
     private val _catalog = MutableStateFlow<List<ExerciseDef>>(emptyList())
     val catalog: StateFlow<List<ExerciseDef>> = _catalog.asStateFlow()
 
+    private val _food = MutableStateFlow<List<FoodEntry>>(emptyList())
+    val food: StateFlow<List<FoodEntry>> = _food.asStateFlow()
+
+    private val _foodCatalog = MutableStateFlow<List<FoodDef>>(emptyList())
+    val foodCatalog: StateFlow<List<FoodDef>> = _foodCatalog.asStateFlow()
+
     /** Catalog entries that came from file but have no logged data yet. */
     private var storedOnly: List<ExerciseDef> = emptyList()
+    private var storedFoodOnly: List<FoodDef> = emptyList()
 
     /** The folder's README and analysis script only need writing once per folder. */
     private var docsEnsured = false
@@ -80,7 +87,10 @@ class Repo(context: Context, private val prefs: Prefs) {
         _strength.value = emptyList()
         _cardio.value = emptyList()
         _catalog.value = emptyList()
+        _food.value = emptyList()
+        _foodCatalog.value = emptyList()
         storedOnly = emptyList()
+        storedFoodOnly = emptyList()
         _status.value = Status.NO_FOLDER
     }
 
@@ -106,8 +116,11 @@ class Repo(context: Context, private val prefs: Prefs) {
                     }
                     _strength.value = snapshot.strength
                     _cardio.value = snapshot.cardio
+                    _food.value = snapshot.food
                     storedOnly = snapshot.catalog
+                    storedFoodOnly = snapshot.foodCatalog
                     refreshCatalog()
+                    refreshFoodCatalog()
                     _error.value = null
                     _status.value = Status.READY
                 } catch (t: Throwable) {
@@ -222,6 +235,118 @@ class Repo(context: Context, private val prefs: Prefs) {
         val row = _cardio.value.firstOrNull { it.id == id } ?: return@mutate emptySet()
         _cardio.value = _cardio.value.filter { it.id != id }
         setOf(YearMonth.from(row.date))
+    }
+
+    // ------------------------------------------------------------------ food
+
+    /**
+     * Logs one item. Purpose and scale default to whatever this item was last recorded as,
+     * which is what keeps a hundredth coffee down to a single tap.
+     */
+    fun addFood(
+        date: LocalDate,
+        item: String,
+        purpose: Purpose,
+        scale: FoodScale,
+        qty: Int = 1,
+        notes: String = "",
+    ) = mutate {
+        val name = item.trim()
+        if (name.isEmpty()) return@mutate emptySet()
+        val row = FoodEntry(
+            id = CsvStore.newId(),
+            date = date,
+            item = canonicalFoodName(name),
+            purpose = purpose,
+            scale = scale,
+            qty = qty.coerceAtLeast(1),
+            notes = Csv.clean(notes),
+            loggedAt = System.currentTimeMillis(),
+        )
+        _food.value = _food.value + row
+        setOf(YearMonth.from(date))
+    }
+
+    fun updateFood(updated: FoodEntry) = mutate {
+        val old = _food.value.firstOrNull { it.id == updated.id } ?: return@mutate emptySet()
+        _food.value = _food.value.map { if (it.id == updated.id) updated else it }
+        setOf(YearMonth.from(old.date), YearMonth.from(updated.date))
+    }
+
+    fun deleteFood(id: String) = mutate {
+        val row = _food.value.firstOrNull { it.id == id } ?: return@mutate emptySet()
+        _food.value = _food.value.filter { it.id != id }
+        setOf(YearMonth.from(row.date))
+    }
+
+    fun addFoodName(name: String, purpose: Purpose, scale: FoodScale) = mutate {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@mutate emptySet()
+        val key = catalogKey(trimmed)
+        if (_foodCatalog.value.any { catalogKey(it.name) == key }) return@mutate emptySet()
+        storedFoodOnly = storedFoodOnly + FoodDef(
+            name = trimmed,
+            purpose = purpose,
+            scale = scale,
+            createdAt = System.currentTimeMillis(),
+        )
+        emptySet()
+    }
+
+    fun renameFood(oldName: String, newName: String) = mutate {
+        val from = catalogKey(oldName)
+        val to = newName.trim()
+        if (to.isEmpty() || from == catalogKey(to)) return@mutate emptySet()
+        val touched = mutableSetOf<YearMonth>()
+        _food.value = _food.value.map { f ->
+            if (catalogKey(f.item) == from) {
+                touched += YearMonth.from(f.date); f.copy(item = to)
+            } else f
+        }
+        storedFoodOnly = storedFoodOnly.map { if (catalogKey(it.name) == from) it.copy(name = to) else it }
+        touched
+    }
+
+    fun deleteFoodName(name: String, alsoDeleteHistory: Boolean) = mutate {
+        val key = catalogKey(name)
+        val touched = mutableSetOf<YearMonth>()
+        if (alsoDeleteHistory) {
+            _food.value.filter { catalogKey(it.item) == key }
+                .forEach { touched += YearMonth.from(it.date) }
+            _food.value = _food.value.filterNot { catalogKey(it.item) == key }
+        }
+        storedFoodOnly = storedFoodOnly.filterNot { catalogKey(it.name) == key }
+        touched
+    }
+
+    /**
+     * Rebuilds the food picker from logged data. An item's remembered purpose and scale
+     * come from its most recent entry, so correcting one entry updates the default too.
+     */
+    private fun refreshFoodCatalog() {
+        val byKey = LinkedHashMap<String, FoodDef>()
+        storedFoodOnly.forEach { def ->
+            byKey[catalogKey(def.name)] = def.copy(useCount = 0, lastUsed = null)
+        }
+        _food.value.groupBy { catalogKey(it.item) }.forEach { (key, rows) ->
+            val newest = rows.maxByOrNull { it.loggedAt } ?: rows.last()
+            val existing = byKey[key]
+            byKey[key] = FoodDef(
+                name = existing?.name ?: newest.item,
+                purpose = newest.purpose,
+                scale = newest.scale,
+                createdAt = existing?.createdAt?.takeIf { it > 0L } ?: rows.minOf { it.loggedAt },
+                lastUsed = rows.maxOf { it.date },
+                useCount = rows.sumOf { it.qty },
+            )
+        }
+        _foodCatalog.value = byKey.values.sortedBy { catalogKey(it.name) }
+        storedFoodOnly = _foodCatalog.value
+    }
+
+    private fun canonicalFoodName(name: String): String {
+        val key = catalogKey(name)
+        return _foodCatalog.value.firstOrNull { catalogKey(it.name) == key }?.name ?: name
     }
 
     // ---------------------------------------------------------------- catalog
@@ -340,14 +465,17 @@ class Repo(context: Context, private val prefs: Prefs) {
                     return@withLock
                 }
                 refreshCatalog()
+                refreshFoodCatalog()
                 val uri = folderUri ?: return@withLock
                 try {
                     withContext(Dispatchers.IO) {
                         touched.forEach { month ->
                             store.saveStrengthMonth(uri, month, _strength.value.filter { YearMonth.from(it.date) == month })
                             store.saveCardioMonth(uri, month, _cardio.value.filter { YearMonth.from(it.date) == month })
+                            store.saveFoodMonth(uri, month, _food.value.filter { YearMonth.from(it.date) == month })
                         }
                         store.saveCatalog(uri, _catalog.value)
+                        store.saveFoodCatalog(uri, _foodCatalog.value)
                     }
                     _error.value = null
                 } catch (t: Throwable) {

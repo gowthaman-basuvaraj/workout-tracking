@@ -7,6 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.ExerciseSession
+import com.gowthaman.workout.data.FoodDef
+import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Prefs
@@ -32,11 +36,12 @@ data class DayView(
     /** One entry per exercise trained that day, each holding its sets in order. */
     val strength: List<ExerciseSession> = emptyList(),
     val cardio: List<CardioEntry> = emptyList(),
+    val food: List<FoodEntry> = emptyList(),
     val totalSets: Int = 0,
     val totalReps: Int = 0,
     val volume: Double = 0.0,
 ) {
-    val isEmpty: Boolean get() = strength.isEmpty() && cardio.isEmpty()
+    val isEmpty: Boolean get() = strength.isEmpty() && cardio.isEmpty() && food.isEmpty()
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -50,12 +55,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val strength: StateFlow<List<StrengthSet>> = repo.strength
     val cardio: StateFlow<List<CardioEntry>> = repo.cardio
     val catalog: StateFlow<List<ExerciseDef>> = repo.catalog
+    val food: StateFlow<List<FoodEntry>> = repo.food
+    val foodCatalog: StateFlow<List<FoodDef>> = repo.foodCatalog
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     val day: StateFlow<DayView> =
-        combine(repo.strength, repo.cardio, _selectedDate, prefs.state) { sets, cardio, date, cfg ->
+        combine(
+            repo.strength, repo.cardio, repo.food, _selectedDate, prefs.state
+        ) { sets, cardio, food, date, cfg ->
             val forDay = sets.filter { it.date == date }
             DayView(
                 date = date,
@@ -67,6 +76,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // Most recently logged exercise first, so the newest work is at the top.
                     .sortedByDescending { session -> session.sets.maxOf { it.loggedAt } },
                 cardio = cardio.filter { it.date == date }.sortedBy { it.loggedAt },
+                food = food.filter { it.date == date }.sortedBy { it.loggedAt },
                 totalSets = forDay.size,
                 totalReps = forDay.sumOf { it.reps },
                 volume = forDay.sumOf { it.volume(cfg.weightUnit, cfg.userBodyweightKg) },
@@ -74,8 +84,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }.stateIn(viewModelScope, SharingStarted.Eagerly, DayView(LocalDate.now()))
 
     val dashboard: StateFlow<Dashboard> =
-        combine(repo.strength, repo.cardio, prefs.state) { sets, cardio, cfg ->
-            Stats.build(sets, cardio, cfg, LocalDate.now())
+        combine(repo.strength, repo.cardio, repo.food, prefs.state) { sets, cardio, food, cfg ->
+            Stats.build(sets, cardio, cfg, LocalDate.now(), food)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, Dashboard())
 
     // ------------------------------------------------------------- navigation
@@ -132,6 +142,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteCardio(id: String) = repo.deleteCardio(id)
 
     fun addExerciseName(name: String, kind: Kind) = repo.addCatalogEntry(name, kind)
+
+    fun addFood(
+        date: LocalDate,
+        item: String,
+        purpose: Purpose,
+        scale: FoodScale,
+        qty: Int = 1,
+        notes: String = "",
+    ) = repo.addFood(date, item, purpose, scale, qty, notes)
+
+    fun updateFood(entry: FoodEntry) = repo.updateFood(entry)
+
+    fun deleteFood(id: String) = repo.deleteFood(id)
+
+    fun addFoodName(name: String, purpose: Purpose, scale: FoodScale) =
+        repo.addFoodName(name, purpose, scale)
+
+    fun renameFood(from: String, to: String) = repo.renameFood(from, to)
+
+    fun deleteFoodName(name: String, alsoDeleteHistory: Boolean) =
+        repo.deleteFoodName(name, alsoDeleteHistory)
 
     fun renameExercise(from: String, to: String) = repo.renameExercise(from, to)
 

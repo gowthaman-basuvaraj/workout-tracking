@@ -44,7 +44,7 @@ import java.time.LocalDate
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     DAY("day", "Day", Icons.Filled.DateRange),
-    EXERCISES("exercises", "Exercises", Icons.Filled.List),
+    EXERCISES("exercises", "Library", Icons.Filled.List),
     DASHBOARD("dashboard", "Dashboard", Icons.Filled.Home),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }

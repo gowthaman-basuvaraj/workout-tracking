@@ -1,8 +1,9 @@
 # Workout Log
 
-A deliberately small Android workout tracker. You log sets on a day, it remembers what you
-did last time, and it tells you when to add a little. Everything lives as plain CSV in a
-folder you choose, so Syncthing/Dropbox can sync it and your laptop can read it.
+A deliberately small Android training and eating log. You log sets on a day, it remembers
+what you did last time, and it tells you when to add a little. You log what you ate, and it
+counts how often. Everything lives as plain CSV in a folder you choose, so Syncthing/Dropbox
+can sync it and your laptop can read it.
 
 No account, no network access, no database.
 
@@ -55,6 +56,21 @@ instead.
 **Cardio.** Activity name, duration and optional distance, with a built-in stopwatch that
 fills the duration in when you stop it. Pace is computed for you.
 
+**Food — a log, not a calorie counter.** What you had, what it was for (breakfast, lunch,
+dinner, snack, drink) and where it sat on a three-point scale: healthy, everyday,
+indulgent. That is the whole schema. There are no calories, macros, portion weights, food
+database or barcode scanner, and none are planned.
+
+The catalog remembers each item's usual purpose and rating, so the hundredth coffee is one
+tap. Picking an item shows **how often it has come up in the last 30 days before you log
+it** — "90 times in the last 30 days" lands harder at the point of decision than it ever
+does on a dashboard afterwards.
+
+The dashboard then reports, flatly: how many things, split by purpose, the healthy /
+everyday / indulgent mix, your most-logged items, consecutive days with nothing indulgent,
+and what share you log after 21:00. It never editorialises — `Coffee 270` is the whole
+message, and you supply the reaction.
+
 **Settings.** Data folder, overload frequency (7 / 15 / 30 days), weight increment, rep
 range, bodyweight rep ceiling, kg/lb, km/mi, and your bodyweight (optional — it makes
 bodyweight exercises contribute real tonnage to the volume charts).
@@ -67,10 +83,16 @@ On first run you pick a folder. Everything goes there as CSV:
 your-folder/
   strength-2026-11.csv    one row per set
   cardio-2026-11.csv      one row per cardio session
+  food-2026-11.csv        one row per food/drink logged
   exercises.csv           the picker's catalog (rebuilt from the logs, safe to delete)
+  foods.csv               the food catalog, with each item's usual purpose and rating
   README.md               the column-by-column schema
   analyze.py              a pandas starter script
 ```
+
+`README.md` and `analyze.py` are generated: the app rewrites them when it ships newer
+copies, so they never document a schema that has moved on. Keep your own analysis in a
+separate file.
 
 One file per month, so logging today only rewrites the current month — small, localised
 writes that sync tools handle well. There is no database and no lock file, so there is
@@ -87,6 +109,7 @@ cd /path/to/synced/folder
 pip install pandas
 python analyze.py                           # overall summary
 python analyze.py --exercise "Bench Press"  # one lift's full history
+python analyze.py --food                    # the food log on its own
 ```
 
 Or straight into pandas:
@@ -167,6 +190,7 @@ app/src/main/java/com/gowthaman/workout/
   MainActivity.kt          single activity; reloads the folder on resume
   data/
     Models.kt              StrengthSet, CardioEntry, sessions, units, formatting
+    Food.kt                FoodEntry, purpose and the healthy-to-indulgent scale
     Csv.kt                 CSV reader/writer, header-addressed rows
     CsvStore.kt            all folder I/O through the Storage Access Framework
     Repo.kt                in-memory source of truth with CSV write-through
@@ -175,7 +199,7 @@ app/src/main/java/com/gowthaman/workout/
     Overload.kt            the progression engine
     Stats.kt               dashboard aggregates
   ui/                      Compose screens: Day, Log, Exercises, detail, Dashboard, Settings
-app/src/test/              50 unit tests, mostly on Overload and Stats
+app/src/test/              66 unit tests, mostly on Overload, Stats and food
 ```
 
 Design notes worth knowing if you change things:
@@ -186,3 +210,9 @@ Design notes worth knowing if you change things:
   holds the full data set and rewrites only the months a change touched.
 - **Estimated 1RM is Epley** (`weight × (1 + reps/30)`), used to compare sets and detect
   improvement. Unweighted sets compare on reps instead.
+- **Food counts are quantity-weighted.** `qty` means occurrences, never portions: two
+  coffees in one sitting is `2`, and every total — including the after-21:00 share — counts
+  it twice.
+- **`logged_at` is UTC epoch millis.** The app reads hour-of-day in the device's zone;
+  `analyze.py` converts to the reader's local zone. Treating it as UTC silently shifts
+  every late-night entry by your offset.

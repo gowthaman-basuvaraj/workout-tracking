@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +46,11 @@ import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.cardioOf
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
+import com.gowthaman.workout.data.FoodDef
+import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.Units
@@ -60,6 +66,7 @@ import com.gowthaman.workout.pickerNames
 import com.gowthaman.workout.sessionsOf
 import kotlinx.coroutines.delay
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun LogScreen(
@@ -73,6 +80,8 @@ fun LogScreen(
     val catalog by vm.catalog.collectAsStateWithLifecycle()
     val allSets by vm.strength.collectAsStateWithLifecycle()
     val allCardio by vm.cardio.collectAsStateWithLifecycle()
+    val allFood by vm.food.collectAsStateWithLifecycle()
+    val foodCatalog by vm.foodCatalog.collectAsStateWithLifecycle()
 
     // An exercise handed in from the Day screen already has a kind; honour it.
     val lockedKind = remember(initialExercise, catalog) {
@@ -96,7 +105,10 @@ fun LogScreen(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 FilterChip(
                     selected = kind == Kind.STRENGTH,
                     onClick = { kind = Kind.STRENGTH; exercise = "" },
@@ -107,25 +119,50 @@ fun LogScreen(
                     onClick = { kind = Kind.CARDIO; exercise = "" },
                     label = { Text("Cardio") },
                 )
+                FilterChip(
+                    selected = kind == Kind.FOOD,
+                    onClick = { kind = Kind.FOOD; exercise = "" },
+                    label = { Text("Food") },
+                )
             }
 
             ExercisePicker(
                 value = exercise,
                 onValueChange = { exercise = it },
-                options = remember(catalog, kind) { pickerNames(catalog, kind) }.map { it.name },
-                label = if (kind == Kind.STRENGTH) "Exercise" else "Activity",
+                options = when (kind) {
+                    Kind.FOOD -> remember(foodCatalog) { foodPickerNames(foodCatalog) }
+                    else -> remember(catalog, kind) { pickerNames(catalog, kind) }.map { it.name }
+                },
+                label = when (kind) {
+                    Kind.STRENGTH -> "Exercise"
+                    Kind.CARDIO -> "Activity"
+                    Kind.FOOD -> "Food or drink"
+                },
             )
 
             if (exercise.isBlank()) {
                 Text(
-                    if (kind == Kind.STRENGTH)
-                        "Type any name — \"Bench press\", \"Pull-ups\", whatever you call it. " +
-                            "It joins the list once you log a set, and gets suggested next time."
-                    else
-                        "Type an activity — \"Run\", \"Cycling\", \"Rowing\". " +
-                            "Duration is enough; distance is optional.",
+                    when (kind) {
+                        Kind.STRENGTH ->
+                            "Type any name — \"Bench press\", \"Pull-ups\", whatever you call it. " +
+                                "It joins the list once you log a set, and gets suggested next time."
+                        Kind.CARDIO ->
+                            "Type an activity — \"Run\", \"Cycling\", \"Rowing\". " +
+                                "Duration is enough; distance is optional."
+                        Kind.FOOD ->
+                            "Type what you had — \"Coffee\", \"Toast\", \"Birthday cake\". " +
+                                "The next time you tap it, how and why are filled in already."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (kind == Kind.FOOD) {
+                FoodForm(
+                    vm = vm,
+                    date = date,
+                    item = exercise,
+                    catalog = foodCatalog,
+                    allFood = allFood,
                 )
             } else if (kind == Kind.STRENGTH) {
                 StrengthForm(
@@ -694,6 +731,161 @@ private fun CardioSuggestionCard(
         Text(
             advice.reason,
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+// ----------------------------------------------------------------------- food
+
+/** Food picker order: most recently eaten first, so today's usual suspects lead. */
+fun foodPickerNames(catalog: List<FoodDef>): List<String> =
+    catalog.sortedWith(
+        compareByDescending<FoodDef> { it.lastUsed }
+            .thenByDescending { it.useCount }
+            .thenBy { catalogKey(it.name) }
+    ).map { it.name }
+
+@Composable
+private fun FoodForm(
+    vm: AppViewModel,
+    date: LocalDate,
+    item: String,
+    catalog: List<FoodDef>,
+    allFood: List<FoodEntry>,
+) {
+    val known = remember(catalog, item) {
+        catalog.firstOrNull { catalogKey(it.name) == catalogKey(item) }
+    }
+
+    // Seeded from how this item was last logged — the whole point of the catalog.
+    var purpose by remember(item, known) { mutableStateOf(known?.purpose ?: Purpose.DEFAULT) }
+    var scale by remember(item, known) { mutableStateOf(known?.scale ?: FoodScale.DEFAULT) }
+    var qty by remember(item) { mutableStateOf("1") }
+    var notes by remember(item) { mutableStateOf("") }
+
+    ItemRecap(item = item, allFood = allFood, date = date)
+
+    SectionCard(title = "what for") {
+        ChipFlow {
+            Purpose.entries.forEach { option ->
+                FilterChip(
+                    selected = purpose == option,
+                    onClick = { purpose = option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+    }
+
+    SectionCard(title = "how it rates") {
+        ChipFlow {
+            FoodScale.entries.forEach { option ->
+                FilterChip(
+                    selected = scale == option,
+                    onClick = { scale = option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Your call, not a nutrition score. It is only here so the dashboard can show " +
+                "you the mix later.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    SectionCard(title = "log it") {
+        StepperField(
+            label = "How many",
+            text = qty,
+            onTextChange = { qty = it.filter(Char::isDigit).take(2) },
+            onStep = { delta -> qty = ((qty.toIntOrNull() ?: 1) + delta).coerceAtLeast(1).toString() },
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Note (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        Button(
+            onClick = {
+                vm.addFood(date, item, purpose, scale, qty.toIntOrNull() ?: 1, notes)
+                qty = "1"
+                notes = ""
+            },
+            enabled = item.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add to the day")
+        }
+    }
+
+    val todays = remember(allFood, date) { allFood.filter { it.date == date } }
+    if (todays.isNotEmpty()) {
+        SectionCard(title = "logged on ${date.relativeLabel().lowercase()}") {
+            todays.forEach { entry ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        NumberText(entry.summary())
+                        Text(
+                            "${entry.purpose.label}  ·  ${entry.scale.label}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    SmallIconButton(Icons.Filled.Clear, "Delete entry") { vm.deleteFood(entry.id) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * How often this item has come up lately.
+ *
+ * Shown before the form on purpose: "this is your 24th coffee this month" lands far harder
+ * at the moment of logging than it ever does on a dashboard afterwards.
+ */
+@Composable
+private fun ItemRecap(item: String, allFood: List<FoodEntry>, date: LocalDate) {
+    val key = catalogKey(item)
+    val recent = remember(allFood, item, date) {
+        allFood.filter {
+            catalogKey(it.item) == key &&
+                it.date <= date &&
+                ChronoUnit.DAYS.between(it.date, date) < 30
+        }
+    }
+    if (recent.isEmpty()) return
+
+    val count = recent.sumOf { it.qty }
+    val last = recent.maxOf { it.date }
+
+    SectionCard(title = "this one lately") {
+        Text(
+            "$count time${if (count == 1) "" else "s"} in the last 30 days",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "last ${last.agoLabel(date)}",
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

@@ -31,6 +31,8 @@ class CsvStore(context: Context) {
         val strength: List<StrengthSet> = emptyList(),
         val cardio: List<CardioEntry> = emptyList(),
         val catalog: List<ExerciseDef> = emptyList(),
+        val food: List<FoodEntry> = emptyList(),
+        val foodCatalog: List<FoodDef> = emptyList(),
     )
 
     // ------------------------------------------------------------------ reading
@@ -40,7 +42,9 @@ class CsvStore(context: Context) {
 
         val strength = ArrayList<StrengthSet>()
         val cardio = ArrayList<CardioEntry>()
+        val food = ArrayList<FoodEntry>()
         var catalog: List<ExerciseDef> = emptyList()
+        var foodCatalog: List<FoodDef> = emptyList()
 
         for (file in root.listFiles()) {
             if (!file.isFile) continue
@@ -53,6 +57,12 @@ class CsvStore(context: Context) {
                     strength += parseStrength(readText(file.uri))
                 name.startsWith(CARDIO_PREFIX) && name.endsWith(EXT) ->
                     cardio += parseCardio(readText(file.uri))
+                // Checked before the "food-" prefix: "foods.csv" is the catalog, and
+                // "food-2026-11.csv" is a month of entries.
+                name == FOOD_CATALOG_FILE ->
+                    foodCatalog = parseFoodCatalog(readText(file.uri))
+                name.startsWith(FOOD_PREFIX) && name.endsWith(EXT) ->
+                    food += parseFood(readText(file.uri))
                 name == CATALOG_FILE ->
                     catalog = parseCatalog(readText(file.uri))
             }
@@ -62,6 +72,8 @@ class CsvStore(context: Context) {
             strength = strength.sortedWith(compareBy({ it.date }, { it.exercise }, { it.setNo })),
             cardio = cardio.sortedWith(compareBy({ it.date }, { it.activity })),
             catalog = catalog,
+            food = food.sortedWith(compareBy({ it.date }, { it.loggedAt })),
+            foodCatalog = foodCatalog,
         )
     }
 
@@ -101,6 +113,35 @@ class CsvStore(context: Context) {
             distUnit = r.str("dist_unit", Units.KM).ifBlank { Units.KM },
             notes = r.str("notes"),
             loggedAt = r.long("logged_at"),
+        )
+    }
+
+    private fun parseFood(text: String): List<FoodEntry> = parseCsv(text).mapNotNull { r ->
+        val date = r.str("date").toLocalDateOrNull() ?: return@mapNotNull null
+        val item = r.str("item").trim()
+        if (item.isEmpty()) return@mapNotNull null
+        FoodEntry(
+            id = r.str("id").ifBlank { newId() },
+            date = date,
+            item = item,
+            purpose = Purpose.fromName(r.str("purpose")),
+            scale = FoodScale.parse(r.str("scale")),
+            qty = r.int("qty", 1).coerceAtLeast(1),
+            notes = r.str("notes"),
+            loggedAt = r.long("logged_at"),
+        )
+    }
+
+    private fun parseFoodCatalog(text: String): List<FoodDef> = parseCsv(text).mapNotNull { r ->
+        val name = r.str("name").trim()
+        if (name.isEmpty()) return@mapNotNull null
+        FoodDef(
+            name = name,
+            purpose = Purpose.fromName(r.str("purpose")),
+            scale = FoodScale.parse(r.str("scale")),
+            createdAt = r.long("created_at"),
+            lastUsed = r.str("last_used").toLocalDateOrNull(),
+            useCount = r.int("uses"),
         )
     }
 
@@ -191,15 +232,69 @@ class CsvStore(context: Context) {
         writeText(treeUri, CATALOG_FILE, MIME_CSV, body)
     }
 
-    /** Drops a schema README and a pandas starter script in the folder, once. */
+    fun saveFoodMonth(treeUri: Uri, month: YearMonth, rows: List<FoodEntry>) {
+        val name = FOOD_PREFIX + month.fileSuffix() + EXT
+        if (rows.isEmpty()) {
+            deleteIfPresent(treeUri, name)
+            return
+        }
+        val body = buildString {
+            append(Csv.row(FOOD_HEADER)).append('\n')
+            rows.sortedWith(compareBy({ it.date }, { it.loggedAt })).forEach { f ->
+                append(
+                    Csv.row(
+                        f.id,
+                        f.date.toString(),
+                        f.item,
+                        f.purpose.name,
+                        f.scale.level.toString(),
+                        f.qty.toString(),
+                        Csv.clean(f.notes),
+                        f.loggedAt.toString(),
+                    )
+                ).append('\n')
+            }
+        }
+        writeText(treeUri, name, MIME_CSV, body)
+    }
+
+    fun saveFoodCatalog(treeUri: Uri, defs: List<FoodDef>) {
+        val body = buildString {
+            append(Csv.row(FOOD_CATALOG_HEADER)).append('\n')
+            defs.sortedBy { catalogKey(it.name) }.forEach { d ->
+                append(
+                    Csv.row(
+                        d.name,
+                        d.purpose.name,
+                        d.scale.level.toString(),
+                        d.createdAt.toString(),
+                        d.lastUsed?.toString().orEmpty(),
+                        d.useCount.toString(),
+                    )
+                ).append('\n')
+            }
+        }
+        writeText(treeUri, FOOD_CATALOG_FILE, MIME_CSV, body)
+    }
+
+    /**
+     * Keeps the folder's schema README and pandas starter script current.
+     *
+     * Both are generated reference material, not user content, so they are rewritten when
+     * the copy in the folder predates the one shipped with the app — otherwise adding a
+     * column would leave every existing folder documenting a schema that no longer exists.
+     */
     fun ensureDocs(treeUri: Uri) {
         val root = requireRoot(treeUri)
-        if (findByName(root, DOC_README) == null) {
-            writeText(treeUri, DOC_README, MIME_MD, asset(DOC_README))
-        }
-        if (findByName(root, DOC_SCRIPT) == null) {
-            writeText(treeUri, DOC_SCRIPT, MIME_PYTHON, asset(DOC_SCRIPT))
-        }
+        refreshDoc(treeUri, root, DOC_README, MIME_MD)
+        refreshDoc(treeUri, root, DOC_SCRIPT, MIME_PYTHON)
+    }
+
+    private fun refreshDoc(treeUri: Uri, root: DocumentFile, name: String, mime: String) {
+        val existing = findByName(root, name)
+        if (existing != null && readText(existing.uri).contains(DOCS_MARKER)) return
+        val content = asset(name)
+        if (content.isNotEmpty()) writeText(treeUri, name, mime, content)
     }
 
     private fun asset(name: String): String =
@@ -252,6 +347,8 @@ class CsvStore(context: Context) {
         const val STRENGTH_PREFIX = "strength-"
         const val CARDIO_PREFIX = "cardio-"
         const val CATALOG_FILE = "exercises.csv"
+        const val FOOD_PREFIX = "food-"
+        const val FOOD_CATALOG_FILE = "foods.csv"
 
         private const val EXT = ".csv"
         private const val MIME_CSV = "text/csv"
@@ -259,6 +356,8 @@ class CsvStore(context: Context) {
         private const val MIME_PYTHON = "text/x-python"
         private const val DOC_README = "README.md"
         private const val DOC_SCRIPT = "analyze.py"
+        /** Bumped whenever the generated docs change; see refreshDoc. */
+        private const val DOCS_MARKER = "workout-log-docs v2"
 
         private val STRENGTH_HEADER = listOf(
             "id", "date", "exercise", "set_no", "reps",
@@ -268,6 +367,12 @@ class CsvStore(context: Context) {
             "id", "date", "activity", "duration_sec", "distance", "dist_unit", "notes", "logged_at",
         )
         private val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
+        private val FOOD_HEADER = listOf(
+            "id", "date", "item", "purpose", "scale", "qty", "notes", "logged_at",
+        )
+        private val FOOD_CATALOG_HEADER = listOf(
+            "name", "purpose", "scale", "created_at", "last_used", "uses",
+        )
 
         private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 

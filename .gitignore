@@ -11,3 +11,7 @@ captures/
 *.keystore
 *.jks
 !debug.keystore
+
+# Python bytecode; the assets folder ships inside the APK, so keep it out.
+__pycache__/
+*.pyc

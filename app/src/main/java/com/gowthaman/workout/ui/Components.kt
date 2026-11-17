@@ -39,7 +39,52 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.ui.theme.NumberStyle
+
+/**
+ * Colour for one point of the healthy-to-indulgent scale.
+ *
+ * Deliberately not red at the indulgent end: the app reports, the reader judges. Teal /
+ * grey / blue stay distinguishable without the page telling anyone off.
+ */
+/**
+ * Chips laid out across as many lines as they need.
+ *
+ * A horizontally scrolling row hides the current selection whenever it sits past the right
+ * edge — which is exactly what happened with five meal purposes on a narrow phone.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun ChipFlow(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit,
+) {
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
+}
+
+@Composable
+fun scaleAccent(scale: FoodScale): Color = when (scale) {
+    FoodScale.HEALTHY -> MaterialTheme.colorScheme.tertiary
+    FoodScale.EVERYDAY -> MaterialTheme.colorScheme.outline
+    FoodScale.INDULGENT -> MaterialTheme.colorScheme.primary
+}
+
+/** Container and content colours for a scale pill. */
+@Composable
+fun scalePillColors(scale: FoodScale): Pair<Color, Color> = when (scale) {
+    FoodScale.HEALTHY ->
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    FoodScale.EVERYDAY ->
+        MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    FoodScale.INDULGENT ->
+        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+}
 
 @Composable
 fun SectionCard(

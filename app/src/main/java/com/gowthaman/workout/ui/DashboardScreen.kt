@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDurationLong
@@ -38,6 +39,7 @@ import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.Stats
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 @Composable
 fun DashboardScreen(
@@ -292,6 +294,11 @@ fun DashboardScreen(
             }
         }
 
+        if (data.hasFood) {
+            item { FoodCard(data = data) }
+            item { TopFoodsCard(data = data) }
+        }
+
         item {
             TotalsFooter(data = data)
         }
@@ -340,6 +347,164 @@ private fun perWeekLabel(sets: Int, period: Period): String? {
     if (sets == 0 || period == Period.WEEK) return null
     val perWeek = sets * 7.0 / period.days
     return "~${perWeek.fmt(1)} per week"
+}
+
+/**
+ * Counts, plainly stated. No targets and no warnings — "103 coffees" is the whole message,
+ * and the reader supplies the reaction.
+ */
+@Composable
+private fun FoodCard(data: Dashboard) {
+    val period = data.period
+    SectionCard(title = "food · ${period.windowLabel}") {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                data.foodCount.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "things logged",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+
+        if (data.foodByPurpose.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                data.foodByPurpose.joinToString("  ·  ") { (purpose, count) ->
+                    "$count ${purpose.count(count)}"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        ScaleMixBar(mix = data.foodScaleMix, total = data.foodCount)
+
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    data.cleanDayStreak.toString(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (data.cleanDayStreak > 0) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "consecutive clean days",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            data.lateNightSharePct?.let { pct ->
+                Column(Modifier.weight(1f)) {
+                    Text("$pct%", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "logged after 21:00",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The healthy / everyday / indulgent split as one proportional bar. */
+@Composable
+private fun ScaleMixBar(mix: List<Pair<FoodScale, Int>>, total: Int) {
+    if (total <= 0) return
+    val shown = mix.filter { it.second > 0 }
+    if (shown.isEmpty()) return
+
+    // Round every slice but the last, then give the last the remainder, so the labels
+    // always add up to 100% instead of to 99.
+    val percents = shown.mapIndexed { i, (_, count) ->
+        if (i < shown.lastIndex) (count * 100.0 / total).roundToInt() else -1
+    }.toMutableList()
+    percents[percents.lastIndex] = 100 - percents.dropLast(1).sum()
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(RoundedCornerShape(5.dp))
+    ) {
+        shown.forEach { (scale, count) ->
+            Box(
+                Modifier
+                    .weight(count.toFloat())
+                    .fillMaxHeight()
+                    .background(scaleAccent(scale))
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        shown.forEachIndexed { i, (scale, _) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .width(8.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(scaleAccent(scale))
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "${scale.label} ${percents[i]}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopFoodsCard(data: Dashboard) {
+    if (data.topFoods.isEmpty()) return
+    SectionCard(title = "most logged food · ${data.period.windowLabel}") {
+        val max = data.topFoods.maxOf { it.second }
+        data.topFoods.forEach { (name, count) ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier
+                        .width(64.dp)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(count / max.toFloat())
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                NumberText("$count")
+            }
+        }
+    }
 }
 
 @Composable

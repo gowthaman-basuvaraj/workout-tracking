@@ -44,6 +44,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
+import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
@@ -101,8 +104,9 @@ fun DayScreen(
                         EmptyState(
                             title = if (day.date == today) "Nothing logged today"
                             else "Nothing logged on ${day.date.shortLabel()}",
-                            body = "Tap Log to add an exercise. The picker fills itself in from " +
-                                "whatever you type, so the first entry starts your list.",
+                            body = "Tap Log to add an exercise or something you ate. The pickers " +
+                                "fill themselves in from whatever you type, so the first entry " +
+                                "starts your list.",
                             action = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     FilledTonalButton(onClick = { onLog(Kind.STRENGTH, null) }) {
@@ -110,6 +114,9 @@ fun DayScreen(
                                     }
                                     FilledTonalButton(onClick = { onLog(Kind.CARDIO, null) }) {
                                         Text("Cardio")
+                                    }
+                                    FilledTonalButton(onClick = { onLog(Kind.FOOD, null) }) {
+                                        Text("Food")
                                     }
                                 }
                             },
@@ -119,6 +126,7 @@ fun DayScreen(
                     item {
                         DaySummary(
                             exercises = day.strength.size + day.cardio.size,
+                            foodItems = day.food.sumOf { it.qty },
                             sets = day.totalSets,
                             reps = day.totalReps,
                             volume = day.volume,
@@ -136,6 +144,21 @@ fun DayScreen(
                         onDeleteSet = vm::deleteSet,
                         onDeleteAll = { confirmDelete = session },
                     )
+                }
+
+                if (day.food.isNotEmpty()) {
+                    item {
+                        Text(
+                            "FOOD",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp, top = 4.dp),
+                        )
+                    }
+                }
+
+                items(day.food, key = { it.id }) { entry ->
+                    FoodRow(entry = entry, onDelete = { vm.deleteFood(entry.id) })
                 }
 
                 items(day.cardio, key = { it.id }) { entry ->
@@ -239,13 +262,15 @@ private fun DateNavigator(
 @Composable
 private fun DaySummary(
     exercises: Int,
+    foodItems: Int,
     sets: Int,
     reps: Int,
     volume: Double,
     unit: String,
 ) {
     val parts = buildList {
-        add("$exercises ${if (exercises == 1) "entry" else "entries"}")
+        if (exercises > 0) add("$exercises ${if (exercises == 1) "entry" else "entries"}")
+        if (foodItems > 0) add("$foodItems food")
         if (sets > 0) add("$sets ${if (sets == 1) "set" else "sets"}")
         if (reps > 0) add("$reps reps")
         if (volume > 0) add("${volume.fmt(0)} $unit volume")
@@ -332,6 +357,38 @@ private fun SetRow(set: StrengthSet, unit: String, onDelete: () -> Unit) {
             )
         }
         SmallIconButton(Icons.Filled.Clear, "Delete set", onClick = onDelete)
+    }
+}
+
+/** One logged item. Flat and factual — the counts on the dashboard do the editorialising. */
+@Composable
+private fun FoodRow(entry: FoodEntry, onDelete: () -> Unit) {
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    entry.summary(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Pill(entry.purpose.label)
+                    Spacer(Modifier.width(6.dp))
+                    val (container, content) = scalePillColors(entry.scale)
+                    Pill(entry.scale.label, container = container, content = content)
+                }
+                if (entry.notes.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        entry.notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            SmallIconButton(Icons.Filled.Clear, "Delete entry", onClick = onDelete)
+        }
     }
 }
 
