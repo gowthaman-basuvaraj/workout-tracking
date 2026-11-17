@@ -1,9 +1,12 @@
-# Workout Log
+# Jotter
 
-A deliberately small Android training and eating log. You log sets on a day, it remembers
-what you did last time, and it tells you when to add a little. You log what you ate, and it
-counts how often. Everything lives as plain CSV in a folder you choose, so Syncthing/Dropbox
-can sync it and your laptop can read it.
+A deliberately small Android log for training and eating. You log sets on a day, it
+remembers what you did last time, and it tells you when to add a little. You log what you
+ate, and it counts how often. Everything lives as plain CSV in a folder you choose, so
+Syncthing/Dropbox can sync it and your laptop can read it.
+
+It records; it does not grade. There are no goals, no targets, no nagging and no score —
+`Coffee 270` is the whole message, and you decide what to make of it.
 
 No account, no network access, no database.
 

@@ -1,15 +1,36 @@
+<!--
+  A jotter: a small note page with a turned-down corner and a few lines of writing.
+
+  Drawn as strokes in a single colour so the same asset works as the adaptive
+  foreground and as the Android 13+ monochrome (themed) icon. Content sits inside the
+  72dp safe circle, so no part of it is clipped by a round or squircle mask.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Page outline, with the bottom-right corner cut away for the dog-ear. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,48h4v-6h6v24h-6v-6h-4v6h-6V42h6z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M36,28 L72,28 L72,64 L56,80 L36,80 Z" />
+
+    <!-- The folded flap: its hypotenuse is exactly the cut above. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M78,48h-4v-6h-6v24h6v-6h4v6h6V42h-6z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M72,64 L56,64 L56,80" />
+
+    <!-- Three jotted lines, ragged on the right the way real notes are. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M42,51h24v6h-24z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M45,41 L63,41 M45,52 L58,52 M45,63 L52,63" />
 </vector>

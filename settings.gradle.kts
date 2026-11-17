@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WorkoutLog"
+rootProject.name = "Jotter"
 include(":app")

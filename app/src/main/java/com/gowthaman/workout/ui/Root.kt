@@ -193,7 +193,7 @@ private fun FolderGate(onPick: (Uri) -> Unit) {
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "Workout Log",
+                    "Jotter",
                     style = MaterialTheme.typography.headlineMedium,
                 )
                 Text(
@@ -206,7 +206,7 @@ private fun FolderGate(onPick: (Uri) -> Unit) {
                     "Everything is stored as plain CSV in a folder you pick — one file per month. " +
                         "Point Syncthing, Dropbox or Nextcloud at that folder and your log is on " +
                         "your laptop too, ready for pandas or a spreadsheet.\n\n" +
-                        "Pick an empty folder you control, such as Documents/workout-log.",
+                        "Pick an empty folder you control, such as Documents/jotter.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

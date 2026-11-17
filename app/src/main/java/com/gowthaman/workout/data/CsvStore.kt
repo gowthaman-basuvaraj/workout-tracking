@@ -357,7 +357,7 @@ class CsvStore(context: Context) {
         private const val DOC_README = "README.md"
         private const val DOC_SCRIPT = "analyze.py"
         /** Bumped whenever the generated docs change; see refreshDoc. */
-        private const val DOCS_MARKER = "workout-log-docs v2"
+        private const val DOCS_MARKER = "jotter-docs v3"
 
         private val STRENGTH_HEADER = listOf(
             "id", "date", "exercise", "set_no", "reps",
