@@ -15,8 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -38,12 +38,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
-import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import java.time.LocalDate
 
@@ -239,7 +239,7 @@ private fun LibraryItem(row: LibraryRow, onClick: () -> Unit) {
             )
         }
         Icon(
-            Icons.Filled.KeyboardArrowRight,
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )

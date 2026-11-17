@@ -16,11 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -43,24 +43,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
-import com.gowthaman.workout.data.agoLabel
-import com.gowthaman.workout.data.fullLabel
-import com.gowthaman.workout.data.relativeLabel
-import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
-import com.gowthaman.workout.data.SleepNight
-import com.gowthaman.workout.data.StressEvent
-import com.gowthaman.workout.data.formatSleep
-import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.data.Kind
+import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.StrengthSet
+import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.Units
+import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDuration
+import com.gowthaman.workout.data.formatSleep
+import com.gowthaman.workout.data.fullLabel
 import com.gowthaman.workout.data.loadLabel
+import com.gowthaman.workout.data.relativeLabel
+import com.gowthaman.workout.data.shortLabel
+import com.gowthaman.workout.data.summary
 import java.time.LocalDate
 
 @Composable
@@ -255,7 +255,7 @@ private fun DateNavigator(
             .padding(horizontal = 6.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SmallIconButton(Icons.Filled.KeyboardArrowLeft, "Previous day") { onShift(-1) }
+        SmallIconButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous day") { onShift(-1) }
 
         Column(
             Modifier
@@ -289,7 +289,7 @@ private fun DateNavigator(
             )
         }
 
-        SmallIconButton(Icons.Filled.KeyboardArrowRight, "Next day") { onShift(1) }
+        SmallIconButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next day") { onShift(1) }
 
         if (date != today) {
             TextButton(onClick = onToday) { Text("Today") }

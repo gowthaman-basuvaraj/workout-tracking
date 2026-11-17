@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -44,7 +44,7 @@ import java.time.LocalDate
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     DAY("day", "Day", Icons.Filled.DateRange),
-    EXERCISES("exercises", "Library", Icons.Filled.List),
+    EXERCISES("exercises", "Library", Icons.AutoMirrored.Filled.List),
     DASHBOARD("dashboard", "Dashboard", Icons.Filled.Home),
     SETTINGS("settings", "Settings", Icons.Filled.Settings),
 }

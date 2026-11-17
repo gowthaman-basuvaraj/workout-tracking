@@ -1,5 +1,6 @@
 package com.gowthaman.workout.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,12 +12,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
@@ -44,41 +44,41 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.cardioOf
-import com.gowthaman.workout.data.agoLabel
-import com.gowthaman.workout.data.fullLabel
-import com.gowthaman.workout.data.relativeLabel
-import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.SleepQuality
 import com.gowthaman.workout.data.StressDef
 import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
-import com.gowthaman.workout.data.formatSleep
-import com.gowthaman.workout.data.parseSleepDuration
-import com.gowthaman.workout.data.summary
-import com.gowthaman.workout.data.Kind
-import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.Units
+import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.e1rm
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDuration
+import com.gowthaman.workout.data.formatSleep
+import com.gowthaman.workout.data.fullLabel
 import com.gowthaman.workout.data.loadLabel
+import com.gowthaman.workout.data.parseSleepDuration
+import com.gowthaman.workout.data.relativeLabel
+import com.gowthaman.workout.data.shortLabel
+import com.gowthaman.workout.data.summary
 import com.gowthaman.workout.logic.CardioAdvice
 import com.gowthaman.workout.logic.Overload
 import com.gowthaman.workout.logic.StrengthAdvice
 import com.gowthaman.workout.pickerNames
 import com.gowthaman.workout.sessionsOf
-import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.delay
 
 @Composable
 fun LogScreen(
@@ -245,7 +245,7 @@ private fun LogTopBar(date: LocalDate, onDone: () -> Unit) {
             .padding(start = 4.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SmallIconButton(Icons.Filled.ArrowBack, "Back", onClick = onDone)
+        SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = onDone)
         Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
             Text("Log workout", style = MaterialTheme.typography.titleMedium)

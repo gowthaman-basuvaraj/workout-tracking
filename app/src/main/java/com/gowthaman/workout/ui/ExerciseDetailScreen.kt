@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -38,14 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.cardioOf
-import com.gowthaman.workout.data.agoLabel
-import com.gowthaman.workout.data.shortLabel
-import com.gowthaman.workout.data.tinyLabel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.Units
+import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.e1rm
 import com.gowthaman.workout.data.fmt
@@ -53,6 +51,8 @@ import com.gowthaman.workout.data.formatDuration
 import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.score
+import com.gowthaman.workout.data.shortLabel
+import com.gowthaman.workout.data.tinyLabel
 import com.gowthaman.workout.data.volume
 import com.gowthaman.workout.logic.Overload
 import com.gowthaman.workout.sessionsOf
@@ -147,7 +147,7 @@ private fun DetailTopBar(
             .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SmallIconButton(Icons.Filled.ArrowBack, "Back", onClick = onBack)
+        SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = onBack)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(
