@@ -73,9 +73,11 @@ fun SettingsScreen(vm: AppViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { picker.launch(null) }) { Text("Change folder") }
-                OutlinedButton(onClick = vm::refresh) { Text("Reload") }
+            ChipFlow {
+                FilledTonalButton(onClick = { picker.launch(null) }) {
+                    Text("Change folder", maxLines = 1)
+                }
+                OutlinedButton(onClick = vm::refresh) { Text("Reload", maxLines = 1) }
             }
         }
 
@@ -88,14 +90,13 @@ fun SettingsScreen(vm: AppViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Short labels: three "Every N days" chips do not fit a phone width.
+            ChipFlow {
                 listOf(7 to "7 days", 15 to "15 days", 30 to "Monthly")
                     .forEach { (days, label) ->
                         FilterChip(
                             selected = settings.overloadPeriodDays == days,
                             onClick = { vm.setOverloadPeriod(days) },
-                            label = { Text(label) },
+                            label = { Text(label, maxLines = 1) },
                         )
                     }
             }
@@ -152,16 +153,16 @@ fun SettingsScreen(vm: AppViewModel) {
         SectionCard(title = "units") {
             Text("Weight", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChipFlow {
                 FilterChip(
                     selected = settings.weightUnit == Units.KG,
                     onClick = { vm.setWeightUnit(Units.KG) },
-                    label = { Text("Kilograms") },
+                    label = { Text("Kilograms", maxLines = 1) },
                 )
                 FilterChip(
                     selected = settings.weightUnit == Units.LB,
                     onClick = { vm.setWeightUnit(Units.LB) },
-                    label = { Text("Pounds") },
+                    label = { Text("Pounds", maxLines = 1) },
                 )
             }
 
@@ -169,16 +170,16 @@ fun SettingsScreen(vm: AppViewModel) {
 
             Text("Distance", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChipFlow {
                 FilterChip(
                     selected = settings.distanceUnit == Units.KM,
                     onClick = { vm.setDistanceUnit(Units.KM) },
-                    label = { Text("Kilometres") },
+                    label = { Text("Kilometres", maxLines = 1) },
                 )
                 FilterChip(
                     selected = settings.distanceUnit == Units.MI,
                     onClick = { vm.setDistanceUnit(Units.MI) },
-                    label = { Text("Miles") },
+                    label = { Text("Miles", maxLines = 1) },
                 )
             }
 

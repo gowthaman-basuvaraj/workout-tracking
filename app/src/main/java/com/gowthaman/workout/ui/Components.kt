@@ -58,15 +58,27 @@ import com.gowthaman.workout.ui.theme.NumberStyle
 @Composable
 fun ChipFlow(
     modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
     content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit,
 ) {
     androidx.compose.foundation.layout.FlowRow(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = horizontalArrangement,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
 }
+
+/** Centred variant, for the action row under an [EmptyState]. */
+@Composable
+fun CenteredChipFlow(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit,
+) = ChipFlow(
+    modifier = modifier,
+    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    content = content,
+)
 
 @Composable
 fun scaleAccent(scale: FoodScale): Color = when (scale) {

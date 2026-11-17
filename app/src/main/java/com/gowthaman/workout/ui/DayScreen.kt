@@ -108,15 +108,17 @@ fun DayScreen(
                                 "fill themselves in from whatever you type, so the first entry " +
                                 "starts your list.",
                             action = {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Wraps whole buttons onto a second line; a plain Row
+                                // squeezes the last one until its label breaks mid-word.
+                                CenteredChipFlow {
                                     FilledTonalButton(onClick = { onLog(Kind.STRENGTH, null) }) {
-                                        Text("Strength")
+                                        Text("Strength", maxLines = 1)
                                     }
                                     FilledTonalButton(onClick = { onLog(Kind.CARDIO, null) }) {
-                                        Text("Cardio")
+                                        Text("Cardio", maxLines = 1)
                                     }
                                     FilledTonalButton(onClick = { onLog(Kind.FOOD, null) }) {
-                                        Text("Food")
+                                        Text("Food", maxLines = 1)
                                     }
                                 }
                             },
