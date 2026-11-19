@@ -207,7 +207,7 @@ fun SettingsScreen(vm: AppViewModel) {
 
         SectionCard(title = "about") {
             Text(
-                "Jotter keeps everything on your device, in files you own. There is no " +
+                "Uncomplicated keeps everything on your device, in files you own. There is no " +
                     "account, no network access and no database — just CSV in the folder you " +
                     "picked.",
                 style = MaterialTheme.typography.bodySmall,

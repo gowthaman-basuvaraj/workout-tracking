@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- One definition of the brand colour, shared by the launcher icon, the splash and
+         the window background. Matches `primary` in Theme.kt. -->
+    <color name="brand">#2A5C8A</color>
+</resources>

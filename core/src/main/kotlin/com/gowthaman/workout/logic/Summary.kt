@@ -8,7 +8,7 @@ import com.gowthaman.workout.data.formatSleep
 /**
  * The dashboard as shareable plain text.
  *
- * Lives in :core so the phone's share sheet and `jotter summary` produce the same thing,
+ * Lives in :core so the phone's share sheet and `unc summary` produce the same thing,
  * and so it can be tested without a screen.
  *
  * Same discipline as the dashboard itself: counts, no scores, no commentary, and sections
@@ -18,10 +18,10 @@ import com.gowthaman.workout.data.formatSleep
 object Summary {
 
     fun text(data: Dashboard, settings: Settings): String {
-        if (!data.hasData) return "Jotter - nothing logged yet."
+        if (!data.hasData) return "Uncomplicated - nothing logged yet."
 
         val lines = mutableListOf<String>()
-        lines += "Jotter - ${data.period.windowLabel}"
+        lines += "Uncomplicated - ${data.period.windowLabel}"
 
         training(data, settings)?.let { lines += ""; lines += it }
         sleep(data)?.let { lines += ""; lines += it }

@@ -35,7 +35,7 @@ class SummaryTest {
 
     @Test
     fun `an empty log says so rather than printing empty headings`() {
-        assertEquals("Jotter - nothing logged yet.", summaryOf())
+        assertEquals("Uncomplicated - nothing logged yet.", summaryOf())
     }
 
     @Test
@@ -51,7 +51,7 @@ class SummaryTest {
     @Test
     fun `the window is named at the top`() {
         val text = summaryOf(sleep = listOf(SleepNight("a", today, 450, SleepQuality.OK)))
-        assertTrue(text.startsWith("Jotter - last 30 days"))
+        assertTrue(text.startsWith("Uncomplicated - last 30 days"))
     }
 
     @Test

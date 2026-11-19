@@ -30,8 +30,8 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.system.exitProcess
 
-private const val CONFIG = ".jotter"
-private const val LAST = ".jotter-last"
+private const val CONFIG = ".uncomplicated"
+private const val LAST = ".uncomplicated-last"
 
 fun main(rawArgs: Array<String>) {
     // Console code pages vary; a food name with an accent in it should still print.
@@ -40,7 +40,7 @@ fun main(rawArgs: Array<String>) {
     try {
         run(rawArgs.toList())
     } catch (e: UserError) {
-        System.err.println("jotter: ${e.message}")
+        System.err.println("unc: ${e.message}")
         e.hint?.let { System.err.println("  $it") }
         exitProcess(1)
     }
@@ -57,7 +57,7 @@ private fun run(raw: List<String>) {
         if (first == "help") args.takeCommand()
         return help(args.positional.firstOrNull())
     }
-    if (args.has("version") || first == "version") return println("jotter 1.0")
+    if (args.has("version") || first == "version") return println("unc 1.0")
 
     when (first) {
         "init" -> { args.takeCommand(); return init(args.positional.toList()) }
@@ -75,16 +75,16 @@ private fun run(raw: List<String>) {
     }
 
     if (first == null) {
-        throw UserError("Nothing to log.", "Try: jotter help")
+        throw UserError("Nothing to log.", "Try: unc help")
     }
-    // Not a command, so it is a name: `jotter coffee`.
+    // Not a command, so it is a name: `unc coffee`.
     logByName(args)
 }
 
 // --------------------------------------------------------------------- folder
 
 private fun resolveFolder(args: Args): Folder {
-    val explicit = args.value("dir") ?: System.getenv("JOTTER_DIR")
+    val explicit = args.value("dir") ?: System.getenv("UNC_DIR")
     if (explicit != null) return folderAt(File(explicit), "the path you gave")
 
     val configured = configFile().takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
@@ -95,7 +95,7 @@ private fun resolveFolder(args: Args): Folder {
 
     throw UserError(
         "I do not know where your data folder is.",
-        "Run:  jotter init /path/to/your/synced/folder",
+        "Run:  unc init /path/to/your/synced/folder",
     )
 }
 
@@ -117,15 +117,15 @@ private fun lastFile() = File(System.getProperty("user.home"), LAST)
 
 private fun init(rest: List<String>) {
     val path = rest.firstOrNull()
-        ?: throw UserError("init needs a path.", "jotter init /path/to/your/synced/folder")
+        ?: throw UserError("init needs a path.", "unc init /path/to/your/synced/folder")
     val dir = File(path).canonicalFile
     if (!dir.isDirectory) throw UserError("$dir is not a directory.")
     if (!looksLikeFolder(dir)) {
-        println("Note: no Jotter CSV files in $dir yet. Saving it anyway.")
+        println("Note: no Uncomplicated CSV files in $dir yet. Saving it anyway.")
     }
     configFile().writeText(dir.path)
     println("Data folder set to $dir")
-    println("Stored in ${configFile()}. Override any time with --dir or \$JOTTER_DIR.")
+    println("Stored in ${configFile()}. Override any time with --dir or \$UNC_DIR.")
 }
 
 // ----------------------------------------------------------------- resolving
@@ -151,7 +151,7 @@ private fun resolveOrFail(names: List<String>, query: String, kindLabel: String,
                     if (match.suggestions.isNotEmpty()) {
                         append("Did you mean: ${match.suggestions.joinToString(", ")}?  ")
                     }
-                    append("Use --new to add it, or `jotter ls` to see what exists.")
+                    append("Use --new to add it, or `unc ls` to see what exists.")
                 },
             )
         }
@@ -173,7 +173,7 @@ private fun logByName(args: Args) {
     when {
         asFood is Catalog.Match.One && asExercise is Catalog.Match.One -> throw UserError(
             "\"$name\" is both a food (${asFood.name}) and an exercise (${asExercise.name}).",
-            "Say which: jotter food $name   or   jotter set $name 10x40",
+            "Say which: unc food $name   or   unc set $name 10x40",
         )
         asFood is Catalog.Match.Many -> throw UserError(
             "\"$name\" matches ${asFood.names.size} foods: ${asFood.names.joinToString(", ")}",
@@ -181,7 +181,7 @@ private fun logByName(args: Args) {
         )
         asFood is Catalog.Match.None && asExercise is Catalog.Match.One -> throw UserError(
             "\"${asExercise.name}\" is an exercise, which needs reps and weight.",
-            "Try: jotter set $name 10x40",
+            "Try: unc set $name 10x40",
         )
     }
     logFood(args, explicit = false)
@@ -195,7 +195,7 @@ private fun logFood(args: Args, explicit: Boolean) {
     val folder = resolveFolder(args)
     val query = args.positional.joinToString(" ").trim()
     if (query.isEmpty()) {
-        throw UserError("Which food?", "jotter food coffee    -    jotter ls food")
+        throw UserError("Which food?", "unc food coffee    -    unc ls food")
     }
 
     val names = folder.foodCatalog.map { it.name }
@@ -256,7 +256,7 @@ private fun logSet(args: Args) {
     if (args.positional.size < 2) {
         throw UserError(
             "set needs an exercise and reps x weight.",
-            "jotter set bench 10x40    -    jotter set pullups 8 --bw",
+            "unc set bench 10x40    -    unc set pullups 8 --bw",
         )
     }
 
@@ -282,7 +282,7 @@ private fun logSet(args: Args) {
     if (weight == 0.0 && !bodyweight) {
         throw UserError(
             "A set with no weight needs --bw to say it is a bodyweight movement.",
-            "jotter set pullups 8 --bw",
+            "unc set pullups 8 --bw",
         )
     }
 
@@ -321,7 +321,7 @@ private fun logCardio(args: Args) {
     val folder = resolveFolder(args)
     val query = args.positional.joinToString(" ").trim()
     if (query.isEmpty()) {
-        throw UserError("Which activity?", "jotter cardio run --time 30 --dist 5.2")
+        throw UserError("Which activity?", "unc cardio run --time 30 --dist 5.2")
     }
 
     val name = resolveOrFail(folder.exerciseCatalog.map { it.name }, query, "activity", args)
@@ -363,7 +363,7 @@ private fun logSleep(args: Args) {
     val folder = resolveFolder(args)
     val spoken = args.positional.joinToString("").trim()
     if (spoken.isEmpty()) {
-        throw UserError("How long did you sleep?", "jotter sleep 7h30 --ok")
+        throw UserError("How long did you sleep?", "unc sleep 7h30 --ok")
     }
 
     val minutes = parseSleepDuration(spoken)
@@ -410,7 +410,7 @@ private fun logStress(args: Args) {
     val folder = resolveFolder(args)
     val query = args.positional.joinToString(" ").trim()
     if (query.isEmpty()) {
-        throw UserError("What happened?", "jotter stress deadline    ·    jotter ls stress")
+        throw UserError("What happened?", "unc stress deadline    ·    unc ls stress")
     }
 
     val names = folder.stressCatalog.map { it.name }
@@ -498,7 +498,7 @@ private fun list(args: Args) {
     if (!showFood && !showStrength && !showCardio && !showStress) {
         throw UserError(
             "Unknown list \"$what\".",
-            "jotter ls [food|strength|cardio|stress] [filter]",
+            "unc ls [food|strength|cardio|stress] [filter]",
         )
     }
 
@@ -696,7 +696,7 @@ private fun interactive() {
         .take(12)
 
     if (recent.isEmpty()) {
-        println("Nothing logged yet. Try:  jotter food coffee --new --drink --everyday")
+        println("Nothing logged yet. Try:  unc food coffee --new --drink --everyday")
         return
     }
 
@@ -725,32 +725,32 @@ private fun help(topic: String?) {
         "stress" -> println(HELP_STRESS)
         "ls", "list" -> println(HELP_LS)
         null -> println(HELP_MAIN)
-        else -> throw UserError("No help for \"$topic\".", "Try: jotter help")
+        else -> throw UserError("No help for \"$topic\".", "Try: unc help")
     }
 }
 
 private val HELP_MAIN = """
-jotter - log training and eating from the command line
+unc - log training and eating from the command line
 
   Writes straight into your synced folder, in the same CSV the phone app uses.
   The app picks changes up the next time it opens.
 
 USAGE
-  jotter                       pick from a list of what you log most
-  jotter <food>                log a food you have logged before
-  jotter food <name> [opts]    the same, said explicitly
-  jotter set <ex> <reps>x<wt>  log a strength set
-  jotter cardio <act> [opts]   log a cardio session
-  jotter sleep <duration>      log last night
-  jotter stress <thing>        log something that wound you up or down
-  jotter ls [what] [filter]    see what names exist
-  jotter today [date]          show a day
-  jotter due                   which lifts are due for an overload
-  jotter summary               everything in the window, as shareable text
-  jotter settings              the settings the app published (read-only)
-  jotter undo                  remove what you just logged
-  jotter init <path>           remember where your data folder is
-  jotter help [command]        more detail on one command
+  unc                       pick from a list of what you log most
+  unc <food>                log a food you have logged before
+  unc food <name> [opts]    the same, said explicitly
+  unc set <ex> <reps>x<wt>  log a strength set
+  unc cardio <act> [opts]   log a cardio session
+  unc sleep <duration>      log last night
+  unc stress <thing>        log something that wound you up or down
+  unc ls [what] [filter]    see what names exist
+  unc today [date]          show a day
+  unc due                   which lifts are due for an overload
+  unc summary               everything in the window, as shareable text
+  unc settings              the settings the app published (read-only)
+  unc undo                  remove what you just logged
+  unc init <path>           remember where your data folder is
+  unc help [command]        more detail on one command
 
 EVERYWHERE
   --dir <path>      use this folder for one command
@@ -769,18 +769,18 @@ SETTINGS
   the app. Without that file, defaults are used and units are read off your data.
 
 FINDING THE FOLDER, in order
-  --dir, then ${'$'}JOTTER_DIR, then ~/.jotter, then the current directory.
+  --dir, then ${'$'}UNC_DIR, then ~/.uncomplicated, then the current directory.
 
 EXAMPLES
-  jotter coffee                       one coffee, with its usual purpose and rating
-  jotter biscuits -n 2 --indulgent    two, overriding the remembered rating
-  jotter set bench 10x40 --sets 3     three sets of ten at 40
-  jotter cardio run --time 32 --dist 5.4
-  jotter ls food cof                  which foods match "cof"
+  unc coffee                       one coffee, with its usual purpose and rating
+  unc biscuits -n 2 --indulgent    two, overriding the remembered rating
+  unc set bench 10x40 --sets 3     three sets of ten at 40
+  unc cardio run --time 32 --dist 5.4
+  unc ls food cof                  which foods match "cof"
 """.trimIndent()
 
 private val HELP_FOOD = """
-jotter food <name> [options]        log something you ate or drank
+unc food <name> [options]        log something you ate or drank
 
   Purpose and rating default to however you last logged that item, so most of
   the time the name alone is the whole command.
@@ -793,14 +793,14 @@ OPTIONS
   --new              allow creating a name that is not in the catalog yet
 
 EXAMPLES
-  jotter food coffee
-  jotter coffee -n 2
-  jotter food "flat white" --new --drink --indulgent
-  jotter food cake --indulgent --note "birthday"
+  unc food coffee
+  unc coffee -n 2
+  unc food "flat white" --new --drink --indulgent
+  unc food cake --indulgent --note "birthday"
 """.trimIndent()
 
 private val HELP_SET = """
-jotter set <exercise> <reps>x<weight> [options]      log a strength set
+unc set <exercise> <reps>x<weight> [options]      log a strength set
 
   Weight unit is taken from your most recent weighted set, so it matches the app
   without needing your phone's settings.
@@ -813,14 +813,14 @@ OPTIONS
   --new          allow an exercise name that is not in the catalog yet
 
 EXAMPLES
-  jotter set bench 10x40
-  jotter set squat 8x100 --sets 3
-  jotter set pullups 8 --bw
-  jotter set dips 6x10 --bw          six reps with 10 of added load
+  unc set bench 10x40
+  unc set squat 8x100 --sets 3
+  unc set pullups 8 --bw
+  unc set dips 6x10 --bw          six reps with 10 of added load
 """.trimIndent()
 
 private val HELP_CARDIO = """
-jotter cardio <activity> [options]      log a cardio session
+unc cardio <activity> [options]      log a cardio session
 
 OPTIONS
   --time <minutes>  duration, may be decimal
@@ -830,12 +830,12 @@ OPTIONS
   --new             allow an activity not in the catalog yet
 
 EXAMPLES
-  jotter cardio run --time 32 --dist 5.4
-  jotter cardio cycling --time 45
+  unc cardio run --time 32 --dist 5.4
+  unc cardio cycling --time 45
 """.trimIndent()
 
 private val HELP_SLEEP = """
-jotter sleep <duration> [options]       log a night
+unc sleep <duration> [options]       log a night
 
   A night is filed under the morning you woke up, so logging in the morning needs
   no date at all. 7h30, 7:30, 7.5 and 450m are all understood.
@@ -848,13 +848,13 @@ OPTIONS
   --yesterday          file it against yesterday instead
 
 EXAMPLES
-  jotter sleep 7h30
-  jotter sleep 6:15 --poor --note "woken at 3"
-  jotter sleep 8h --good
+  unc sleep 7h30
+  unc sleep 6:15 --poor --note "woken at 3"
+  unc sleep 8h --good
 """.trimIndent()
 
 private val HELP_STRESS = """
-jotter stress <thing> [options]         log a stress event
+unc stress <thing> [options]         log a stress event
 
   Direction and weight are remembered per item, so a repeat is just the name:
   a deadline is always an enhancer, a walk is always a buster.
@@ -870,20 +870,20 @@ OPTIONS
   --new                    allow a name not in the catalog yet
 
 EXAMPLES
-  jotter stress deadline
-  jotter stress walk
-  jotter stress "review meeting" --new --enhancer --major
+  unc stress deadline
+  unc stress walk
+  unc stress "review meeting" --new --enhancer --major
 """.trimIndent()
 
 private val HELP_LS = """
-jotter ls [food|strength|cardio] [filter]      see what names exist
+unc ls [food|strength|cardio] [filter]      see what names exist
 
   With no arguments, lists everything you have ever logged, most recent first,
   with each item's remembered defaults and how often you have logged it.
 
 EXAMPLES
-  jotter ls
-  jotter ls food
-  jotter ls food cof
-  jotter ls strength
+  unc ls
+  unc ls food
+  unc ls food cof
+  unc ls strength
 """.trimIndent()

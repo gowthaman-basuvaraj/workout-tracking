@@ -70,7 +70,7 @@ val NumberStyle = TextStyle(
 private val AppTypography = Typography()
 
 @Composable
-fun WorkoutTheme(
+fun UncomplicatedTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

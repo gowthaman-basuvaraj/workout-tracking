@@ -1,10 +1,21 @@
 <resources>
-    <!-- The parent is the dark Material theme, so the window background is set explicitly
-         and follows the system light/dark setting via values-night. Compose paints
-         everything else. -->
-    <style name="Theme.Jotter" parent="android:Theme.Material.NoActionBar">
+    <!-- The window behind Compose. The parent is the dark Material theme, so the background
+         is set explicitly and follows the system light/dark setting via values-night. -->
+    <style name="Theme.Uncomplicated" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!--
+      The launch theme. Android shows this before the activity draws, so without it the
+      first frame is a bare window; with it, the mark on the brand colour.
+
+      postSplashScreenTheme is what the activity switches to once it is ready.
+    -->
+    <style name="Theme.Uncomplicated.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.Uncomplicated</item>
     </style>
 </resources>

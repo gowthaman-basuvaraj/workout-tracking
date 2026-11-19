@@ -1,0 +1,18 @@
+<!--
+  The same mark, sized for the splash screen.
+
+  A splash icon is drawn into a 288dp canvas and masked to the inner two thirds, so the
+  strokes are scaled to sit well within a 96dp radius of the centre.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="15"
+        android:strokeLineCap="round"
+        android:pathData="M94,115 L194,115  M94,144 L169,144  M94,173 L144,173" />
+</vector>

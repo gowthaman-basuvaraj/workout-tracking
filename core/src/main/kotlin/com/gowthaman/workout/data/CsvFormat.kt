@@ -11,7 +11,7 @@ import java.util.UUID
  *
  * Deliberately free of any I/O. The phone reaches the folder through the Storage Access
  * Framework and the desktop CLI through java.io.File, but both go through here, so there
- * is exactly one definition of what a Jotter CSV looks like.
+ * is exactly one definition of what an Uncomplicated CSV looks like.
  */
 object CsvFormat {
 
@@ -52,8 +52,8 @@ object CsvFormat {
      * file is opened, rather than only in the folder README.
      */
     const val SETTINGS_NOTE =
-        "Written by the Jotter app. Read-only here: the app overwrites this file whenever " +
-            "a setting changes, so edits made on a computer will be lost."
+        "Written by the Uncomplicated app. Read-only here: the app overwrites this " +
+            "file whenever a setting changes, so edits made on a computer will be lost."
 
     private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 

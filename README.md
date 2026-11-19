@@ -1,4 +1,6 @@
-# Jotter
+# Uncomplicated
+
+**A log, not a scoreboard.**
 
 A deliberately small Android log for training and eating. You log sets on a day, it
 remembers what you did last time, and it tells you when to add a little. You log what you
@@ -9,6 +11,22 @@ It records; it does not grade. There are no goals, no targets, no nagging and no
 `Coffee 270` is the whole message, and you decide what to make of it.
 
 No account, no network access, no database.
+
+## The name and the mark
+
+**Uncomplicated** because the app's only promise is that logging something takes a few
+seconds and nothing is asked of you afterwards. No streak to protect, no goal to miss, no
+colour that turns red.
+
+The mark is three strokes of decreasing length — a short list, getting shorter. One flat
+colour (`#2A5C8A`, defined once in `res/values/brand.xml`), no gradient, no glyph and no
+dumbbell, so it also works as the monochrome and themed-icon layer without a second
+drawing. It is a placeholder done properly, not a logo: `ic_launcher_foreground.xml` and
+`ic_splash.xml` are the same path at two scales, so replacing it later means editing two
+files.
+
+The splash is the platform's own (`core-splashscreen`), held only while the data folder is
+being read and capped at 1.5s, so a slow or unreachable folder can never strand you on it.
 
 ## What it does
 
@@ -53,7 +71,7 @@ the month. The volume chart re-buckets to stay readable — 7 daily bars for a w
 bars for a month, 6 monthly bars for a quarter, 12 for a year.
 
 **Share.** The share icon hands the window's figures to the system share sheet as plain
-text — the same summary `jotter summary` prints, built from the same code. Text rather
+text — the same summary `unc summary` prints, built from the same code. Text rather
 than an image so it pastes into a message, an email or your own notes and stays readable.
 Nothing leaves the device until you pick a destination.
 
@@ -156,26 +174,27 @@ print(sets.set_index("date").volume.resample("W-MON").sum())
 
 ## Logging from a laptop
 
-`jotter.jar` writes straight into the same synced folder, so you do not have to pick up
+`uncomplicated.jar` writes straight into the same synced folder, so you do not have to pick up
 your phone to record a coffee. The app sees the change the next time it opens.
 
 ```bash
-./gradlew :cli:jar                       # -> cli/build/libs/jotter.jar
-java -jar jotter.jar init ~/sync/jotter  # remember the folder
+./gradlew :cli:jar                    # -> cli/build/libs/uncomplicated.jar
+alias unc='java -jar ~/bin/uncomplicated.jar'
+unc init ~/sync/uncomplicated         # remember the folder
 ```
 
 ```bash
-jotter coffee                      # purpose and rating come from the catalog
-jotter biscuits -n 2 --indulgent   # override either of them
-jotter set bench 10x42.5 --sets 3  # weight unit inferred from your last weighted set
-jotter cardio run --time 31 --dist 5.3
-jotter sleep 7h30 --ok             # 7h30, 7:30, 7.5 and 450m all parse
-jotter stress deadline             # direction and weight remembered per item
-jotter ls food cof                 # what names exist
-jotter summary                     # the same text the share button produces
-jotter today                       # what is logged
-jotter undo                        # remove what you just logged
-jotter help set                    # per-command help
+unc coffee                      # purpose and rating come from the catalog
+unc biscuits -n 2 --indulgent   # override either of them
+unc set bench 10x42.5 --sets 3  # weight unit inferred from your last weighted set
+unc cardio run --time 31 --dist 5.3
+unc sleep 7h30 --ok             # 7h30, 7:30, 7.5 and 450m all parse
+unc stress deadline             # direction and weight remembered per item
+unc ls food cof                 # what names exist
+unc summary                     # the same text the share button produces
+unc today                       # what is logged
+unc undo                        # remove what you just logged
+unc help set                    # per-command help
 ```
 
 **Names cannot drift.** `coffee`, `COFFEE` and `  Coffee ` all resolve through the same
@@ -189,7 +208,7 @@ It appends a single row rather than rewriting the month, which keeps the window 
 conflict far smaller than the app's own writes.
 
 **Settings travel with the data.** The app publishes `settings.csv` into the folder, so
-`jotter due` applies your real overload window and `jotter set` logs in your real unit
+`unc due` applies your real overload window and `unc set` logs in your real unit
 rather than guessing. That copy is **one-way and read-only**: the app rewrites it whenever
 a setting changes, so edits made on a laptop are lost — change settings in the app. Without
 the file the CLI uses defaults, reads units off your most recent logged row, and says so.
@@ -201,7 +220,7 @@ Requires JDK 17 and the Android SDK (platform 36). `local.properties` already po
 
 ```bash
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
-./gradlew :cli:jar               # cli/build/libs/jotter.jar
+./gradlew :cli:jar               # cli/build/libs/uncomplicated.jar
 ./gradlew :core:test             # the shared logic: overload, CSV, catalog, stats
 ./gradlew installDebug           # to a connected device or emulator
 ```

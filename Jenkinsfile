@@ -1,4 +1,4 @@
-// Self-contained Android build pipeline for Jotter.
+// Self-contained Android build pipeline for Uncomplicated.
 //
 // It provisions everything it needs by itself — a Temurin JDK 17 and the Android SDK
 // (command-line tools, platform-tools, platform android-36, build-tools 36.0.0) — into a

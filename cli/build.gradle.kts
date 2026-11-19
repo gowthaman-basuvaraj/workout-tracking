@@ -1,5 +1,5 @@
-// The desktop logger. Produces a self-contained jar so it runs on any machine with a
-// JDK and nothing else installed:  java -jar jotter.jar coffee
+// The desktop logger for Uncomplicated. Produces a self-contained jar so it runs on any machine with a
+// JDK and nothing else installed:  java -jar uncomplicated.jar coffee
 plugins {
     id("org.jetbrains.kotlin.jvm")
     application
@@ -23,7 +23,7 @@ tasks.test {
 }
 
 tasks.jar {
-    archiveBaseName.set("jotter")
+    archiveBaseName.set("uncomplicated")
     archiveVersion.set("")
     manifest { attributes["Main-Class"] = "com.gowthaman.workout.cli.MainKt" }
     // Fold the Kotlin stdlib and :core in, so there is no classpath to assemble by hand.

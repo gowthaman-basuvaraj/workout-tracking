@@ -9,7 +9,7 @@ class UserError(message: String, val hint: String? = null) : Exception(message)
  * A very small flag parser.
  *
  * Hand-rolled on purpose: a dependency-free jar is the whole point of shipping this as
- * `java -jar jotter.jar`, and the grammar here is a dozen flags.
+ * `java -jar uncomplicated.jar`, and the grammar here is a dozen flags.
  */
 class Args(raw: List<String>) {
 
@@ -42,7 +42,7 @@ class Args(raw: List<String>) {
                         flags += boolean
                     } else {
                         val name = SHORT[short]
-                            ?: throw UserError("Unknown option $token.", "Try: jotter help")
+                            ?: throw UserError("Unknown option $token.", "Try: unc help")
                         val next = raw.getOrNull(i + 1) ?: throw UserError("$token needs a value.")
                         values[name] = next
                         i++
@@ -60,7 +60,7 @@ class Args(raw: List<String>) {
      * Removes and returns the leading positional, once it is known to be a command.
      *
      * Parsing the whole line before dispatching is what lets global options appear
-     * anywhere: `jotter --dir X ls food` and `jotter ls food --dir X` both work.
+     * anywhere: `unc --dir X ls food` and `unc ls food --dir X` both work.
      */
     fun takeCommand(): String? = positional.removeFirstOrNull()
     fun value(name: String): String? = values[name]
@@ -83,7 +83,7 @@ class Args(raw: List<String>) {
             throw UserError(
                 "Unknown option${if (unknown.size == 1) "" else "s"}: " +
                     unknown.joinToString(", ") { "--$it" },
-                "Try: jotter help",
+                "Try: unc help",
             )
         }
     }
