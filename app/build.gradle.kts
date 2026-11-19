@@ -17,7 +17,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.gowthaman.workout"
+        // Reverse-DNS of uncomplicated.life. Permanent: Play binds the listing to this
+        // string on first upload, so it can never change without becoming a new app.
+        // Deliberately not the namespace -- that stays com.gowthaman.workout so no
+        // source file or import has to move.
+        applicationId = "life.uncomplicated"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
