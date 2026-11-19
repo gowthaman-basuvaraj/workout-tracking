@@ -102,3 +102,17 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+/**
+ * One command for a release, because a release is two artifacts now.
+ *
+ * The APK is what you sideload onto your own phone or hand to someone directly; the
+ * bundle is the only format Play accepts for a new app. They are built from the same
+ * signed, minified output, so building one without the other just means the pair can
+ * drift.
+ */
+tasks.register("release") {
+    group = "build"
+    description = "Builds both release artifacts: the sideload APK and the Play bundle."
+    dependsOn("assembleRelease", "bundleRelease")
+}

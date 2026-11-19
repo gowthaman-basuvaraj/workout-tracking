@@ -124,16 +124,32 @@ pipeline {
                     string(credentialsId: 'android-key-alias', variable: 'RELEASE_KEY_ALIAS'),
                     string(credentialsId: 'android-key-password', variable: 'RELEASE_KEY_PASSWORD'),
                 ]) {
-                    sh label: 'Gradle assembleRelease (signed, R8-minified)', script: '''
+                    sh label: 'Gradle assembleRelease + bundleRelease (signed, R8-minified)', script: '''
                         set -eu
                         chmod +x gradlew
-                        ./gradlew --no-daemon --stacktrace assembleRelease
+                        # Both: the APK is what you sideload onto your own phone, the bundle
+                        # is the only thing Play accepts for a new app.
+                        ./gradlew --no-daemon --stacktrace assembleRelease bundleRelease
 
                         # Fail loudly if an unsigned APK slipped through: without a keystore AGP
                         # emits app-release-unsigned.apk instead, which must never ship.
                         APK=app/build/outputs/apk/release/app-release.apk
                         test -f "$APK" || { echo "Signed release APK not found (unsigned build?)"; exit 1; }
                         "$ANDROID_SDK_ROOT/build-tools/${BUILD_TOOLS_VER}/apksigner" verify --verbose "$APK"
+
+                        # The bundle needs checking a different way. An unsigned .aab keeps the
+                        # same name -- there is no app-release-unsigned.aab -- so the filename
+                        # proves nothing and only the signature does. apksigner cannot read a
+                        # bundle; jarsigner can, because an .aab carries a JAR signature.
+                        AAB=app/build/outputs/bundle/release/app-release.aab
+                        test -f "$AAB" || { echo "Release bundle not found"; exit 1; }
+                        # Not -strict: an upload key is self-signed by design, and -strict
+                        # reports that as an error. "jar verified" vs "jar is unsigned" is
+                        # the distinction that matters, and the self-signed warning is
+                        # expected -- Play re-signs with the app signing key on its side.
+                        jarsigner -verify "$AAB" | tee /tmp/aab-verify.txt
+                        grep -q "^jar verified" /tmp/aab-verify.txt || {
+                            echo "Release bundle is NOT signed - Play would reject it"; exit 1; }
                     '''
                 }
             }
@@ -147,12 +163,15 @@ pipeline {
         }
         success {
             archiveArtifacts artifacts: 'app/build/outputs/apk/**/*.apk', fingerprint: true
+            // Only produced by the release stage, so empty on an ordinary build.
+            archiveArtifacts artifacts: 'app/build/outputs/bundle/release/*.aab',
+                             allowEmptyArchive: true, fingerprint: true
             archiveArtifacts artifacts: 'cli/build/libs/uncomplicated.jar', fingerprint: true
             // Release builds are minified, so keep the R8 mapping — without it a production
             // stack trace is unreadable, and it is not reproducible from a later build.
             archiveArtifacts artifacts: 'app/build/outputs/mapping/release/mapping.txt',
                              allowEmptyArchive: true, fingerprint: true
-            sh 'echo "Artifacts:"; find app/build/outputs/apk -name "*.apk" -exec ls -lh {} +'
+            sh 'echo "Artifacts:"; find app/build/outputs -name "*.apk" -o -name "*.aab" | xargs -r ls -lh'
         }
     }
 }

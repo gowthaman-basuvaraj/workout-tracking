@@ -245,14 +245,33 @@ export RELEASE_STORE_PASSWORD=...
 export RELEASE_KEY_ALIAS=...
 export RELEASE_KEY_PASSWORD=...
 
-./gradlew assembleRelease        # app/build/outputs/apk/release/app-release.apk
+./gradlew release           # both of the below
+./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
+./gradlew bundleRelease     # app/build/outputs/bundle/release/app-release.aab
 ```
+
+Both, because they are for different things. The **APK** is what you sideload onto your
+own phone or hand to someone directly. The **bundle** is the only format Play accepts for
+a new app — you upload the `.aab` and Play builds the per-device APKs from it.
+
+Mind the asymmetry when checking a build: an unsigned APK is renamed to
+`app-release-unsigned.apk`, so the filename gives it away, but an unsigned **bundle keeps
+the same name**. Only the signature proves anything, and `apksigner` cannot read a bundle:
+
+```bash
+jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+```
+
+`jar verified.` is the pass, `jar is unsigned.` the failure. The warning underneath about a
+self-signed certificate is expected and not a problem: an upload key is self-signed by
+design, and Play re-signs with the app signing key on its side. Do not add `-strict`, which
+reports exactly that as an error.
 
 They also work as Gradle properties (`-PRELEASE_STORE_FILE=...`) if you prefer.
 
 Without those variables the build still succeeds but emits `app-release-unsigned.apk`
 instead — which is what CI checks for, so an unsigned APK can never be archived as a
-release. Keep `app/build/outputs/mapping/release/mapping.txt` for any build you ship;
+release. CI verifies the bundle's signature separately, for the reason above. Keep `app/build/outputs/mapping/release/mapping.txt` for any build you ship;
 without it a production stack trace is unreadable.
 
 ## Continuous integration
@@ -266,7 +285,8 @@ It provisions Temurin JDK 17 and the Android SDK (cmdline-tools 23.0, platform-t
 then runs the committed Gradle wrapper. Stages: checkout → provision JDK → provision SDK →
 `clean testDebugUnitTest assembleDebug` → optionally a signed release.
 
-Test results are published via `junit`; APKs and the R8 mapping file are archived.
+Test results are published via `junit`; APKs, the release bundle, the CLI jar and the R8
+mapping file are archived.
 
 Tick the **RELEASE** build parameter to also produce a signed release APK. That stage needs
 four Jenkins credentials:
