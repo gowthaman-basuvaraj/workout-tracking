@@ -46,6 +46,7 @@ import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.SleepNight
@@ -476,6 +477,16 @@ private fun FoodRow(entry: FoodEntry, onDelete: () -> Unit) {
                     Spacer(Modifier.width(6.dp))
                     val (container, content) = scalePillColors(entry.scale)
                     Pill(entry.scale.label, container = container, content = content)
+                }
+                // Quieter than the pills and on its own line: purpose and rating are what
+                // every item has, tags are an aside on the ones that carry them.
+                if (entry.tags.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        FoodTag.labels(entry.tags),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (entry.notes.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))

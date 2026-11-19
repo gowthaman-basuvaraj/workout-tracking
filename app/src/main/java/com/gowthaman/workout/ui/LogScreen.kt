@@ -49,6 +49,7 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Settings
@@ -1024,6 +1025,7 @@ private fun FoodForm(
     // Seeded from how this item was last logged — the whole point of the catalog.
     var purpose by remember(item, known) { mutableStateOf(known?.purpose ?: Purpose.DEFAULT) }
     var scale by remember(item, known) { mutableStateOf(known?.scale ?: FoodScale.DEFAULT) }
+    var tags by remember(item, known) { mutableStateOf(known?.tags ?: emptySet()) }
     var qty by remember(item) { mutableStateOf("1") }
     var notes by remember(item) { mutableStateOf("") }
 
@@ -1060,6 +1062,25 @@ private fun FoodForm(
         )
     }
 
+    SectionCard(title = "what was in it") {
+        ChipFlow {
+            FoodTag.entries.forEach { option ->
+                FilterChip(
+                    selected = option in tags,
+                    onClick = { tags = if (option in tags) tags - option else tags + option },
+                    label = { Text(option.label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Optional, and as many as apply. Leave it empty and the item simply goes " +
+                "uncounted here.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
     SectionCard(title = "log it") {
         StepperField(
             label = "How many",
@@ -1082,7 +1103,7 @@ private fun FoodForm(
 
         Button(
             onClick = {
-                vm.addFood(date, item, purpose, scale, qty.toIntOrNull() ?: 1, notes)
+                vm.addFood(date, item, purpose, scale, tags, qty.toIntOrNull() ?: 1, notes)
                 qty = "1"
                 notes = ""
             },
@@ -1106,7 +1127,9 @@ private fun FoodForm(
                     Column(Modifier.weight(1f)) {
                         NumberText(entry.summary())
                         Text(
-                            "${entry.purpose.label}  ·  ${entry.scale.label}",
+                            "${entry.purpose.label}  ·  ${entry.scale.label}" +
+                                if (entry.tags.isEmpty()) ""
+                                else "  ·  ${FoodTag.labels(entry.tags)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

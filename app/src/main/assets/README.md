@@ -11,7 +11,7 @@ Nextcloud or anything else that syncs files, and safe to read with pandas / R / 
 | `cardio-YYYY-MM.csv`   | One row per **cardio session**, for that calendar month     |
 | `food-YYYY-MM.csv`     | One row per **food/drink logged**, for that calendar month |
 | `exercises.csv`        | The exercise catalog that drives the app's autocomplete    |
-| `foods.csv`            | The food catalog, with each item's usual purpose and rating|
+| `foods.csv`            | The food catalog: each item's usual purpose, rating, tags  |
 | `sleep-YYYY-MM.csv`    | One row per **night**, for that calendar month             |
 | `stress-YYYY-MM.csv`   | One row per **stress event**                               |
 | `stress.csv`           | The stress catalog, with each item's usual direction       |
@@ -62,6 +62,7 @@ A log of *what* and *how*, deliberately not of calories or nutrients.
 | `item`      | string | Free text, matched case-insensitively by the app             |
 | `purpose`   | string | `BREAKFAST`, `LUNCH`, `DINNER`, `SNACK` or `DRINK`           |
 | `scale`     | int    | `1` healthy, `2` everyday, `3` indulgent — the logger's call |
+| `tags`      | string | Pipe-joined, any of `PLANTS`, `EGG`, `DAIRY`, `MEAT`. May be empty |
 | `qty`       | int    | Occurrences, not portions. Two coffees at once is `2`        |
 | `notes`     | string | Free text                                                    |
 | `logged_at` | int    | Unix epoch millis when saved — a usable proxy for time of day|

@@ -103,14 +103,22 @@ dinner, snack, drink) and where it sat on a three-point scale: healthy, everyday
 indulgent. That is the whole schema. There are no calories, macros, portion weights, food
 database or barcode scanner, and none are planned.
 
+Optionally, what was in it: **plants, egg, dairy, meat**, any number of them at once. Four
+tags is deliberately too few to describe a plate -- they are there so the dashboard can
+count how often you reach for each, not so the log can describe a meal, and anything finer
+would be nutrition tracking coming back in through the side door. They are remembered per
+item like everything else, and an item left untagged simply goes uncounted.
+
 The catalog remembers each item's usual purpose and rating, so the hundredth coffee is one
 tap. Picking an item shows **how often it has come up in the last 30 days before you log
 it** — "90 times in the last 30 days" lands harder at the point of decision than it ever
 does on a dashboard afterwards.
 
 The dashboard then reports, flatly: how many things, split by purpose, the healthy /
-everyday / indulgent mix, your most-logged items, consecutive days with nothing indulgent,
-and what share you log after 21:00. It never editorialises — `Coffee 270` is the whole
+everyday / indulgent mix, the tag counts with the coverage they came from, your
+most-logged items, consecutive days with nothing indulgent, and what share you log after
+21:00. Tags are counts rather than a proportional mix, because they overlap and are
+optional: a dosa with curd is two of them, and an untagged item is none. It never editorialises — `Coffee 270` is the whole
 message, and you supply the reaction.
 
 **Settings.** Data folder, overload frequency (7 / 15 / 30 days), weight increment, rep
@@ -130,7 +138,7 @@ your-folder/
   stress-2026-11.csv      one row per stress event
   stress.csv              the stress catalog, with each item's usual direction
   exercises.csv           the picker's catalog (rebuilt from the logs, safe to delete)
-  foods.csv               the food catalog, with each item's usual purpose and rating
+  foods.csv               the food catalog: each item's usual purpose, rating and tags
   settings.csv            a read-only copy of the app's settings, for desktop tools
   README.md               the column-by-column schema
   analyze.py              a pandas starter script
@@ -184,7 +192,8 @@ unc init ~/sync/uncomplicated         # remember the folder
 ```
 
 ```bash
-unc coffee                      # purpose and rating come from the catalog
+unc coffee                      # purpose, rating and tags come from the catalog
+unc dosa --plants --dairy       # what was in it, any number of tags
 unc biscuits -n 2 --indulgent   # override either of them
 unc set bench 10x42.5 --sets 3  # weight unit inferred from your last weighted set
 unc cardio run --time 31 --dist 5.3

@@ -5,6 +5,7 @@ import com.gowthaman.workout.data.Catalog
 import com.gowthaman.workout.data.CsvFormat
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.SleepNight
@@ -189,8 +190,10 @@ private fun logByName(args: Args) {
 
 private fun logFood(args: Args, explicit: Boolean) {
     args.rejectUnknown(
-        setOf("n", "qty", "note", "new") + Purpose.entries.map { it.name.lowercase() } +
-            FoodScale.entries.map { it.name.lowercase() },
+        setOf("n", "qty", "note", "new", "no-tags") +
+            Purpose.entries.map { it.name.lowercase() } +
+            FoodScale.entries.map { it.name.lowercase() } +
+            FoodTag.entries.map { it.name.lowercase() },
     )
     val folder = resolveFolder(args)
     val query = args.positional.joinToString(" ").trim()
@@ -208,6 +211,15 @@ private fun logFood(args: Args, explicit: Boolean) {
     val scale = FoodScale.entries.firstOrNull { args.has(it.name.lowercase()) }
         ?: known?.scale
         ?: FoodScale.DEFAULT
+    // Tags are a set, so unlike purpose and rating they can be empty -- and an empty
+    // selection is indistinguishable from "say nothing and keep what I had last time".
+    // --no-tags is how you say the first one.
+    val chosenTags = FoodTag.entries.filter { args.has(it.name.lowercase()) }.toSet()
+    val tags = when {
+        chosenTags.isNotEmpty() -> chosenTags
+        args.has("no-tags") -> emptySet()
+        else -> known?.tags.orEmpty()
+    }
     val qty = (args.value("qty") ?: args.value("n"))?.toIntOrNull()?.coerceAtLeast(1) ?: 1
     val date = args.date()
 
@@ -217,6 +229,7 @@ private fun logFood(args: Args, explicit: Boolean) {
         item = name,
         purpose = purpose,
         scale = scale,
+        tags = tags,
         qty = qty,
         notes = args.value("note").orEmpty(),
         loggedAt = System.currentTimeMillis(),
@@ -235,7 +248,8 @@ private fun logFood(args: Args, explicit: Boolean) {
 }
 
 private fun describe(entry: FoodEntry): String =
-    "${entry.summary()}  -  ${entry.purpose.label} / ${entry.scale.label}"
+    "${entry.summary()}  -  ${entry.purpose.label} / ${entry.scale.label}" +
+        if (entry.tags.isEmpty()) "" else "  (${FoodTag.labels(entry.tags)})"
 
 private fun onDate(date: LocalDate): String =
     if (date == LocalDate.now()) "" else "  on ${date.shortLabel()}"
@@ -508,7 +522,12 @@ private fun list(args: Args) {
             .sortedWith(compareByDescending<com.gowthaman.workout.data.FoodDef> { it.lastUsed }
                 .thenBy { catalogKey(it.name) })
         section("FOOD", rows.map {
-            Triple(it.name, "${it.purpose.label} / ${it.scale.label}", summaryOf(it.useCount, "logged", it.lastUsed))
+            Triple(
+                it.name,
+                "${it.purpose.label} / ${it.scale.label}" +
+                    if (it.tags.isEmpty()) "" else " / ${FoodTag.labels(it.tags)}",
+                summaryOf(it.useCount, "logged", it.lastUsed),
+            )
         })
     }
     if (showStress) {
@@ -605,7 +624,12 @@ private fun showDay(args: Args) {
     }
     if (food.isNotEmpty()) {
         println("  FOOD")
-        food.forEach { println("    ${it.summary().padEnd(24)} ${it.purpose.label} / ${it.scale.label}") }
+        food.forEach {
+            println(
+                "    ${it.summary().padEnd(24)} ${it.purpose.label} / ${it.scale.label}" +
+                    if (it.tags.isEmpty()) "" else " / ${FoodTag.labels(it.tags)}"
+            )
+        }
         println()
         println("    ${food.sumOf { it.qty }} items")
     }
@@ -782,21 +806,25 @@ EXAMPLES
 private val HELP_FOOD = """
 unc food <name> [options]        log something you ate or drank
 
-  Purpose and rating default to however you last logged that item, so most of
-  the time the name alone is the whole command.
+  Purpose, rating and tags default to however you last logged that item, so most
+  of the time the name alone is the whole command.
 
 OPTIONS
   -n, --n <count>    how many (default 1). Occurrences, not portions.
   --breakfast --lunch --dinner --snack --drink      override the purpose
   --healthy --everyday --indulgent                  override the rating
+  --plants --egg --dairy --meat                     what was in it, any number
+  --no-tags          log it with no tags, ignoring the remembered ones
   --note <text>      a note
   --new              allow creating a name that is not in the catalog yet
 
 EXAMPLES
   unc food coffee
   unc coffee -n 2
-  unc food "flat white" --new --drink --indulgent
+  unc food "flat white" --new --drink --indulgent --dairy
   unc food cake --indulgent --note "birthday"
+  unc food dosa --plants --dairy      several tags at once
+  unc food salad --no-tags            drop the tags remembered for this item
 """.trimIndent()
 
 private val HELP_SET = """

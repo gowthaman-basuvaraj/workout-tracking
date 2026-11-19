@@ -204,7 +204,7 @@ class CsvStore(context: Context) {
         private const val DOC_SCRIPT = "analyze.py"
 
         /** Bumped whenever the generated docs change; see refreshDoc. */
-        private const val DOCS_MARKER = "uncomplicated-docs v6"
+        private const val DOCS_MARKER = "uncomplicated-docs v7"
 
         fun newId(): String = CsvFormat.newId()
     }

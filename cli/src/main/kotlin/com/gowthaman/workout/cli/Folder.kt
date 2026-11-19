@@ -172,6 +172,18 @@ class Folder(val dir: File) {
     private fun append(fileName: String, header: List<String>, row: String) {
         val file = File(dir, fileName)
         val needsHeader = !file.isFile || file.length() == 0L
+
+        // A file written before a column existed cannot take today's row as-is -- every
+        // value past the missing column would land one place to the left. Bringing the
+        // file up to a header that holds both costs one rewrite, once.
+        if (!needsHeader) {
+            val realigned = CsvFormat.appendAligned(file.readText(StandardCharsets.UTF_8), header, row)
+            if (realigned != null) {
+                file.writeText(realigned, StandardCharsets.UTF_8)
+                return
+            }
+        }
+
         val text = buildString {
             if (needsHeader) append(com.gowthaman.workout.data.Csv.row(header)).append('\n')
             append(row).append('\n')

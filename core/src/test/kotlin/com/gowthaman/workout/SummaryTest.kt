@@ -2,6 +2,7 @@ package com.gowthaman.workout
 
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.SleepNight
@@ -82,11 +83,36 @@ class SummaryTest {
     }
 
     @Test
+    fun `food tags are shared as counts with the coverage they came from`() {
+        val food = listOf(
+            FoodEntry("a", today, "Dosa", Purpose.DINNER, FoodScale.EVERYDAY,
+                tags = setOf(FoodTag.PLANTS, FoodTag.DAIRY), qty = 1),
+            FoodEntry("b", today, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY,
+                tags = setOf(FoodTag.DAIRY), qty = 2),
+            FoodEntry("c", today, "Crisps", Purpose.SNACK, FoodScale.INDULGENT, qty = 1),
+        )
+        val line = summaryOf(food = food).lines().first { it.contains("tagged") }
+
+        // Counts, never a percentage: tags overlap, so shares would not add up and the
+        // untagged crisps belong to none of them.
+        assertEquals("  tagged 3 of 4 - dairy 3, plants 1", line)
+        assertTrue(!line.contains("%"))
+    }
+
+    @Test
+    fun `an untagged food log says nothing about tags at all`() {
+        val text = summaryOf(
+            food = listOf(FoodEntry("a", today, "Crisps", Purpose.SNACK, FoodScale.INDULGENT, qty = 1)),
+        )
+        assertTrue(text, !text.contains("tagged"))
+    }
+
+    @Test
     fun `percentages add to a hundred`() {
         val food = listOf(
-            FoodEntry("a", today, "Salad", Purpose.LUNCH, FoodScale.HEALTHY, 1),
-            FoodEntry("b", today, "Toast", Purpose.BREAKFAST, FoodScale.EVERYDAY, 1),
-            FoodEntry("c", today, "Cake", Purpose.SNACK, FoodScale.INDULGENT, 1),
+            FoodEntry("a", today, "Salad", Purpose.LUNCH, FoodScale.HEALTHY, qty = 1),
+            FoodEntry("b", today, "Toast", Purpose.BREAKFAST, FoodScale.EVERYDAY, qty = 1),
+            FoodEntry("c", today, "Cake", Purpose.SNACK, FoodScale.INDULGENT, qty = 1),
         )
         val line = summaryOf(food = food).lines().first { it.contains("%") }
         val total = Regex("""(\d+)%""").findAll(line).sumOf { it.groupValues[1].toInt() }
@@ -98,7 +124,7 @@ class SummaryTest {
     fun `nothing in the text grades or advises`() {
         val text = summaryOf(
             strength = listOf(StrengthSet("s", today, "Squat", 1, 10, 100.0, Units.KG, false)),
-            food = listOf(FoodEntry("f", today, "Cake", Purpose.SNACK, FoodScale.INDULGENT, 4)),
+            food = listOf(FoodEntry("f", today, "Cake", Purpose.SNACK, FoodScale.INDULGENT, qty = 4)),
             sleep = listOf(SleepNight("n", today, 240, SleepQuality.POOR)),
         )
         listOf("should", "try to", "too much", "poorly", "well done", "goal", "target")

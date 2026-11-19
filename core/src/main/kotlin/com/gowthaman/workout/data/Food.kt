@@ -62,6 +62,41 @@ enum class FoodScale(val level: Int, val label: String) {
     }
 }
 
+/**
+ * What was in it, as a handful of coarse tags rather than ingredients.
+ *
+ * Optional, and several at once: a dosa with curd is PLANTS and DAIRY. Four tags is
+ * deliberately too few to describe a plate -- they are here so the dashboard can count how
+ * often you reach for each, not so the log can describe a meal. Anything finer would be
+ * nutrition tracking coming back in through the side door.
+ */
+enum class FoodTag(val label: String) {
+    PLANTS("Plants"),
+    EGG("Egg"),
+    DAIRY("Dairy"),
+    MEAT("Meat");
+
+    companion object {
+        /** Joined with a pipe, so the field never needs CSV quoting. */
+        const val SEPARATOR = '|'
+
+        fun fromName(name: String?): FoodTag? =
+            entries.firstOrNull { it.name.equals(name?.trim(), ignoreCase = true) }
+
+        /** Tolerant of hand-edited files: commas and spaces separate just as well. */
+        fun parse(raw: String): Set<FoodTag> =
+            raw.split(SEPARATOR, ',', ' ', ';').mapNotNull { fromName(it) }.toSet()
+
+        /** Always declaration order, so one set always writes the same string. */
+        fun render(tags: Set<FoodTag>): String =
+            entries.filter { it in tags }.joinToString(SEPARATOR.toString()) { it.name }
+
+        /** For the UI, where the labels read better than the stored names. */
+        fun labels(tags: Set<FoodTag>): String =
+            entries.filter { it in tags }.joinToString(" / ") { it.label }
+    }
+}
+
 /** One thing eaten or drunk, on one day. */
 data class FoodEntry(
     val id: String,
@@ -69,6 +104,8 @@ data class FoodEntry(
     val item: String,
     val purpose: Purpose,
     val scale: FoodScale,
+    /** Optional and possibly empty: not every item is worth describing. */
+    val tags: Set<FoodTag> = emptySet(),
     /** Occurrences, not portions — "two coffees", never "180 grams". */
     val qty: Int = 1,
     val notes: String = "",
@@ -78,13 +115,14 @@ data class FoodEntry(
 /**
  * An entry in the auto-populated food catalog.
  *
- * [purpose] and [scale] are the remembered defaults for this item, which is what makes
- * logging the same coffee for the hundredth time a single tap.
+ * [purpose], [scale] and [tags] are the remembered defaults for this item, which is what
+ * makes logging the same coffee for the hundredth time a single tap.
  */
 data class FoodDef(
     val name: String,
     val purpose: Purpose = Purpose.DEFAULT,
     val scale: FoodScale = FoodScale.DEFAULT,
+    val tags: Set<FoodTag> = emptySet(),
     val createdAt: Long = 0L,
     val lastUsed: LocalDate? = null,
     val useCount: Int = 0,

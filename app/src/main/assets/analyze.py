@@ -77,6 +77,12 @@ def load_food():
         df["qty"] = 1
     df["qty"] = df["qty"].fillna(1).astype(int)
     df["rating"] = df["scale"].map(SCALE_NAMES).fillna("everyday")
+    # Tags are optional and overlap, so they get a column each rather than one split:
+    # an item can be both PLANTS and DAIRY, or neither.
+    tags = df.get("tags", pd.Series("", index=df.index)).fillna("")
+    for tag in ("PLANTS", "EGG", "DAIRY", "MEAT"):
+        df[tag.lower()] = tags.str.upper().str.split("|").apply(lambda t: tag in t)
+    df["tagged"] = tags.str.strip() != ""
     # logged_at is when it was saved - close enough to when it was eaten to be useful.
     # It is UTC epoch millis, so convert to THIS machine's local time before taking the
     # hour; reading it as UTC silently shifts every "late night" entry by your offset.
@@ -100,6 +106,15 @@ def show_food(food, weeks):
 
     print("-- by purpose --")
     print(food.groupby("purpose")["qty"].sum().sort_values(ascending=False).to_string())
+
+    tagged = int(food.loc[food["tagged"], "qty"].sum())
+    if tagged:
+        print()
+        print(f"-- what was in it (of {tagged} tagged, out of {int(food['qty'].sum())}) --")
+        for tag in ("plants", "egg", "dairy", "meat"):
+            n = int(food.loc[food[tag], "qty"].sum())
+            if n:
+                print(f"{tag:10s} {n}")
     print()
 
     print("-- by rating --")

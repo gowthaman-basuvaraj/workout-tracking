@@ -118,6 +118,7 @@ object Catalog {
                 name = existing?.name ?: newest.item,
                 purpose = newest.purpose,
                 scale = newest.scale,
+                tags = newest.tags,
                 createdAt = existing?.createdAt?.takeIf { it > 0L } ?: rows.minOf { it.loggedAt },
                 lastUsed = rows.maxOf { it.date },
                 useCount = rows.sumOf { it.qty },

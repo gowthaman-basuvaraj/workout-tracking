@@ -10,6 +10,7 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.SleepQuality
@@ -187,9 +188,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         item: String,
         purpose: Purpose,
         scale: FoodScale,
+        tags: Set<FoodTag> = emptySet(),
         qty: Int = 1,
         notes: String = "",
-    ) = repo.addFood(date, item, purpose, scale, qty, notes)
+    ) = repo.addFood(date, item, purpose, scale, tags, qty, notes)
 
     fun updateFood(entry: FoodEntry) = repo.updateFood(entry)
 

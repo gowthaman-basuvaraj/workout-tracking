@@ -73,6 +73,12 @@ object Summary {
         out += "  ${data.foodCount} logged" + if (byPurpose.isNotEmpty()) " - $byPurpose" else ""
         percentages(data.foodScaleMix.map { it.first.label to it.second }, data.foodCount)
             ?.let { out += "  $it" }
+        // Counts, with the coverage they came from -- tags are optional, so "plants 96"
+        // on its own would imply the other 106 things had no plants in them.
+        if (data.foodTaggedCount > 0) {
+            out += "  tagged ${data.foodTaggedCount} of ${data.foodCount} - " +
+                data.foodTagMix.joinToString(", ") { "${it.first.label.lowercase()} ${it.second}" }
+        }
         data.topFoods.firstOrNull()?.let { (name, count) -> out += "  most logged: $name $count" }
         return out.joinToString("\n")
     }

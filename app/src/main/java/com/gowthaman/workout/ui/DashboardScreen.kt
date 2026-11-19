@@ -618,6 +618,21 @@ private fun FoodCard(data: Dashboard) {
         Spacer(Modifier.height(14.dp))
         ScaleMixBar(mix = data.foodScaleMix, total = data.foodCount)
 
+        if (data.foodTagMix.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                data.foodTagMix.joinToString("  ·  ") { (tag, count) -> "${tag.label} $count" },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            // Not a bar: tags overlap and are optional, so a proportional split would be
+            // a lie. The coverage says what the counts are out of.
+            Text(
+                "tagged ${data.foodTaggedCount} of ${data.foodCount}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

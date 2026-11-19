@@ -34,10 +34,11 @@ object CsvFormat {
         "id", "date", "activity", "duration_sec", "distance", "dist_unit", "notes", "logged_at",
     )
     val FOOD_HEADER = listOf(
-        "id", "date", "item", "purpose", "scale", "qty", "notes", "logged_at",
+        "id", "date", "item", "purpose", "scale", "tags", "qty", "notes", "logged_at",
     )
     val CATALOG_HEADER = listOf("name", "type", "created_at", "last_used", "uses")
-    val FOOD_CATALOG_HEADER = listOf("name", "purpose", "scale", "created_at", "last_used", "uses")
+    val FOOD_CATALOG_HEADER =
+        listOf("name", "purpose", "scale", "tags", "created_at", "last_used", "uses")
     val SETTINGS_HEADER = listOf("key", "value")
     val SLEEP_HEADER = listOf("id", "date", "duration_min", "quality", "notes", "logged_at")
     val STRESS_HEADER = listOf(
@@ -123,6 +124,8 @@ object CsvFormat {
             item = item,
             purpose = Purpose.fromName(r.str("purpose")),
             scale = FoodScale.parse(r.str("scale")),
+            // Absent in files written before tags existed, which reads as "untagged".
+            tags = FoodTag.parse(r.str("tags")),
             qty = r.int("qty", 1).coerceAtLeast(1),
             notes = r.str("notes"),
             loggedAt = r.long("logged_at"),
@@ -191,6 +194,7 @@ object CsvFormat {
             name = name,
             purpose = Purpose.fromName(r.str("purpose")),
             scale = FoodScale.parse(r.str("scale")),
+            tags = FoodTag.parse(r.str("tags")),
             createdAt = r.long("created_at"),
             lastUsed = parseDate(r.str("last_used")),
             useCount = r.int("uses"),
@@ -291,6 +295,7 @@ object CsvFormat {
                     d.name,
                     d.purpose.name,
                     d.scale.level.toString(),
+                    FoodTag.render(d.tags),
                     d.createdAt.toString(),
                     d.lastUsed?.toString().orEmpty(),
                     d.useCount.toString(),
@@ -369,12 +374,47 @@ object CsvFormat {
         e.loggedAt.toString(),
     )
 
+    /**
+     * Fits one new row into a file whose header may predate a column.
+     *
+     * The CLI appends rather than rewrites, so a row written against today's header and
+     * appended to a file written against an older one would shift every value past the
+     * difference: a tag landing in the `qty` column and a quantity in the notes. Columns
+     * are addressed by name on the way in, so nothing would complain -- the row would
+     * just be quietly wrong.
+     *
+     * Returns null when the file already agrees and a plain append is safe. Otherwise
+     * returns the whole file rewritten under a header holding both sets of columns, with
+     * [row] appended to it. Columns the file has and [header] does not are kept rather
+     * than dropped, so a column added by a later version of the app survives a log from
+     * an older CLI.
+     */
+    fun appendAligned(existing: String, header: List<String>, row: String): String? {
+        val lines = Csv.lines(existing)
+        if (lines.isEmpty()) return null
+        val fileHeader = Csv.parse(lines.first())
+        if (fileHeader == header) return null
+
+        val merged = header + fileHeader.filterNot { it in header }
+        val body = lines.drop(1).map { Csv.row(align(Csv.parse(it), fileHeader, merged)) }
+        val fitted = Csv.row(align(Csv.parse(row), header, merged))
+        return (listOf(Csv.row(merged)) + body + fitted).joinToString("\n", postfix = "\n")
+    }
+
+    /** One record moved from [from]'s column order into [to]'s, blank-filling the rest. */
+    private fun align(values: List<String>, from: List<String>, to: List<String>): List<String> =
+        to.map { column ->
+            val i = from.indexOf(column)
+            if (i >= 0 && i < values.size) values[i] else ""
+        }
+
     fun foodRow(f: FoodEntry): String = Csv.row(
         f.id,
         f.date.toString(),
         f.item,
         f.purpose.name,
         f.scale.level.toString(),
+        FoodTag.render(f.tags),
         f.qty.toString(),
         Csv.clean(f.notes),
         f.loggedAt.toString(),

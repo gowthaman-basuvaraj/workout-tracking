@@ -97,8 +97,8 @@ class CatalogTest {
     fun `the food catalog remembers how an item was last logged`() {
         val day = LocalDate.of(2026, 11, 17)
         val entries = listOf(
-            FoodEntry("a", day.minusDays(2), "Coffee", Purpose.DRINK, FoodScale.HEALTHY, 1, loggedAt = 1),
-            FoodEntry("b", day, "Coffee", Purpose.DRINK, FoodScale.INDULGENT, 2, loggedAt = 2),
+            FoodEntry("a", day.minusDays(2), "Coffee", Purpose.DRINK, FoodScale.HEALTHY, qty = 1, loggedAt = 1),
+            FoodEntry("b", day, "Coffee", Purpose.DRINK, FoodScale.INDULGENT, qty = 2, loggedAt = 2),
         )
         val def = Catalog.rebuildFood(emptyList(), entries).single()
 
@@ -112,8 +112,8 @@ class CatalogTest {
     fun `differently cased rows collapse into one catalog entry`() {
         val day = LocalDate.of(2026, 11, 17)
         val entries = listOf(
-            FoodEntry("a", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, 1, loggedAt = 1),
-            FoodEntry("b", day, "coffee", Purpose.DRINK, FoodScale.EVERYDAY, 1, loggedAt = 2),
+            FoodEntry("a", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1, loggedAt = 1),
+            FoodEntry("b", day, "coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1, loggedAt = 2),
         )
         val built = Catalog.rebuildFood(emptyList(), entries)
 
@@ -160,7 +160,7 @@ class CsvFormatTest {
 
     @Test
     fun `a single row carries no header, for appending`() {
-        val entry = FoodEntry("abc", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, 1)
+        val entry = FoodEntry("abc", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1)
         val row = CsvFormat.foodRow(entry)
 
         assertTrue(!row.contains("item"))

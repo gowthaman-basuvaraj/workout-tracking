@@ -1,7 +1,11 @@
 package com.gowthaman.workout
 
 import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.CsvFormat
+import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
+import com.gowthaman.workout.data.Catalog
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Settings
@@ -48,7 +52,7 @@ class FoodModelTest {
 
     @Test
     fun `quantity only shows when there is more than one`() {
-        val one = FoodEntry("a", LocalDate.now(), "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, 1)
+        val one = FoodEntry("a", LocalDate.now(), "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1)
         val two = one.copy(qty = 2)
         assertEquals("Coffee", one.summary())
         assertEquals("2 x Coffee", two.summary())
@@ -71,6 +75,161 @@ class FoodModelTest {
     }
 }
 
+class FoodTagTest {
+
+    @Test
+    fun `tags render in declaration order whatever order they were picked in`() {
+        // Otherwise the same meal writes two different strings and every diff is noise.
+        val a = FoodTag.render(setOf(FoodTag.MEAT, FoodTag.PLANTS))
+        val b = FoodTag.render(setOf(FoodTag.PLANTS, FoodTag.MEAT))
+        assertEquals("PLANTS|MEAT", a)
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun `tags round-trip through the stored form`() {
+        val tags = setOf(FoodTag.PLANTS, FoodTag.DAIRY)
+        assertEquals(tags, FoodTag.parse(FoodTag.render(tags)))
+    }
+
+    @Test
+    fun `an empty tag set renders and parses as nothing`() {
+        assertEquals("", FoodTag.render(emptySet()))
+        assertEquals(emptySet<FoodTag>(), FoodTag.parse(""))
+    }
+
+    @Test
+    fun `hand-edited separators and casing still parse`() {
+        assertEquals(
+            setOf(FoodTag.PLANTS, FoodTag.EGG),
+            FoodTag.parse("plants, Egg"),
+        )
+        assertEquals(setOf(FoodTag.MEAT), FoodTag.parse(" meat "))
+    }
+
+    @Test
+    fun `an unknown tag is dropped rather than throwing`() {
+        // A laptop edit must never be able to crash the app.
+        assertEquals(setOf(FoodTag.DAIRY), FoodTag.parse("DAIRY|GLUTEN"))
+        assertEquals(emptySet<FoodTag>(), FoodTag.parse("nonsense"))
+    }
+}
+
+class FoodTagCsvTest {
+
+    private val day = LocalDate.of(2026, 11, 19)
+
+    private fun entry(tags: Set<FoodTag>) = FoodEntry(
+        id = "x1",
+        date = day,
+        item = "Dosa",
+        purpose = Purpose.DINNER,
+        scale = FoodScale.EVERYDAY,
+        tags = tags,
+        qty = 1,
+        loggedAt = 1_700_000_000_000L,
+    )
+
+    @Test
+    fun `tags survive a write and read`() {
+        val row = entry(setOf(FoodTag.PLANTS, FoodTag.DAIRY))
+        val back = CsvFormat.parseFood(CsvFormat.renderFood(listOf(row)))
+        assertEquals(1, back.size)
+        assertEquals(setOf(FoodTag.PLANTS, FoodTag.DAIRY), back.first().tags)
+    }
+
+    @Test
+    fun `a file written before tags existed reads as untagged`() {
+        // The column is addressed by header name, so an old file is simply short of one.
+        val old = """
+            id,date,item,purpose,scale,qty,notes,logged_at
+            a1,2026-11-19,Coffee,DRINK,2,2,,1700000000000
+        """.trimIndent()
+        val rows = CsvFormat.parseFood(old)
+        assertEquals(1, rows.size)
+        assertEquals(emptySet<FoodTag>(), rows.first().tags)
+        assertEquals(2, rows.first().qty)
+    }
+
+    @Test
+    fun `the tag field never needs quoting`() {
+        val text = CsvFormat.renderFood(listOf(entry(setOf(FoodTag.PLANTS, FoodTag.MEAT))))
+        assertTrue(text, !text.contains('"'))
+        assertTrue(text, text.contains("PLANTS|MEAT"))
+    }
+
+    @Test
+    fun `appending to a file that already agrees is left to a plain append`() {
+        val text = CsvFormat.renderFood(listOf(entry(setOf(FoodTag.PLANTS))))
+        assertNull(CsvFormat.appendAligned(text, CsvFormat.FOOD_HEADER, "whatever"))
+    }
+
+    @Test
+    fun `appending to a file written before tags existed does not shift every value`() {
+        // The CLI appends rather than rewrites. Without realigning, PLANTS would land in
+        // the qty column and the quantity in the notes -- and nothing would complain,
+        // because columns are read by name on the way back in.
+        val old = "id,date,item,purpose,scale,qty,notes,logged_at\n" +
+            "a1,2026-11-18,Coffee,DRINK,2,3,morning,1700000000000\n"
+        val row = CsvFormat.foodRow(entry(setOf(FoodTag.PLANTS, FoodTag.DAIRY)).copy(qty = 2))
+
+        val merged = CsvFormat.appendAligned(old, CsvFormat.FOOD_HEADER, row)
+        assertTrue(merged != null)
+        val rows = CsvFormat.parseFood(merged!!)
+
+        assertEquals(2, rows.size)
+        val existing = rows.first { it.id == "a1" }
+        assertEquals(3, existing.qty)
+        assertEquals("morning", existing.notes)
+        assertEquals(emptySet<FoodTag>(), existing.tags)
+
+        val appended = rows.first { it.id == "x1" }
+        assertEquals(2, appended.qty)
+        assertEquals(setOf(FoodTag.PLANTS, FoodTag.DAIRY), appended.tags)
+        assertEquals(1_700_000_000_000L, appended.loggedAt)
+    }
+
+    @Test
+    fun `a column this version does not know about is kept rather than dropped`() {
+        // An older CLI logging into a folder a newer app writes must not quietly delete
+        // whatever that newer app added.
+        val newer = "id,date,item,purpose,scale,tags,qty,notes,logged_at,mood\n" +
+            "a1,2026-11-18,Coffee,DRINK,2,DAIRY,1,,1700000000000,calm\n"
+        val merged = CsvFormat.appendAligned(
+            newer, CsvFormat.FOOD_HEADER, CsvFormat.foodRow(entry(setOf(FoodTag.EGG))),
+        )
+
+        assertTrue(merged!!, merged.lines().first().endsWith(",mood"))
+        assertTrue(merged, merged.contains(",calm"))
+        assertEquals(setOf(FoodTag.DAIRY), CsvFormat.parseFood(merged).first { it.id == "a1" }.tags)
+    }
+
+    @Test
+    fun `the catalog remembers the tags from the most recent entry`() {
+        val entries = listOf(
+            entry(setOf(FoodTag.PLANTS)).copy(id = "a", date = day.minusDays(2), loggedAt = 1L),
+            entry(setOf(FoodTag.PLANTS, FoodTag.DAIRY)).copy(id = "b", loggedAt = 2L),
+        )
+        val rebuilt = Catalog.rebuildFood(emptyList(), entries)
+        assertEquals(1, rebuilt.size)
+        assertEquals(setOf(FoodTag.PLANTS, FoodTag.DAIRY), rebuilt.first().tags)
+    }
+
+    @Test
+    fun `catalog tags survive a write and read`() {
+        val def = FoodDef(
+            name = "Dosa",
+            purpose = Purpose.DINNER,
+            scale = FoodScale.EVERYDAY,
+            tags = setOf(FoodTag.PLANTS, FoodTag.DAIRY),
+            useCount = 3,
+        )
+        val back = CsvFormat.parseFoodCatalog(CsvFormat.renderFoodCatalog(listOf(def)))
+        assertEquals(setOf(FoodTag.PLANTS, FoodTag.DAIRY), back.first().tags)
+        assertEquals(3, back.first().useCount)
+    }
+}
+
 class FoodStatsTest {
 
     private val today: LocalDate = LocalDate.of(2026, 11, 17)
@@ -81,6 +240,7 @@ class FoodStatsTest {
         item: String,
         purpose: Purpose = Purpose.SNACK,
         scale: FoodScale = FoodScale.EVERYDAY,
+        tags: Set<FoodTag> = emptySet(),
         qty: Int = 1,
         hour: Int = 12,
         id: String = "$item-$date-$hour",
@@ -90,6 +250,7 @@ class FoodStatsTest {
         item = item,
         purpose = purpose,
         scale = scale,
+        tags = tags,
         qty = qty,
         loggedAt = date.atTime(LocalTime.of(hour, 0))
             .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
@@ -213,6 +374,42 @@ class FoodStatsTest {
 
         assertEquals(5, data.foodCount)
         assertEquals(60, data.lateNightSharePct)
+    }
+
+    @Test
+    fun `tag counts are quantity-weighted and may overlap`() {
+        val entries = listOf(
+            food(today, "Dosa", tags = setOf(FoodTag.PLANTS, FoodTag.DAIRY)),
+            food(today, "Coffee", qty = 3, tags = setOf(FoodTag.DAIRY), id = "c"),
+            food(today, "Crisps", id = "d"),
+        )
+        val data = Stats.build(emptyList(), emptyList(), settings, today, entries)
+
+        assertEquals(5, data.foodCount)
+        // One dosa plus three coffees carry a tag; the crisps do not.
+        assertEquals(4, data.foodTaggedCount)
+        assertEquals(
+            listOf(FoodTag.DAIRY to 4, FoodTag.PLANTS to 1),
+            data.foodTagMix,
+        )
+    }
+
+    @Test
+    fun `tags nobody used are left out entirely`() {
+        val data = Stats.build(
+            emptyList(), emptyList(), settings, today,
+            listOf(food(today, "Salad", tags = setOf(FoodTag.PLANTS))),
+        )
+        assertEquals(listOf(FoodTag.PLANTS to 1), data.foodTagMix)
+    }
+
+    @Test
+    fun `an untagged log reports no coverage rather than zeroes`() {
+        val data = Stats.build(
+            emptyList(), emptyList(), settings, today, listOf(food(today, "Crisps")),
+        )
+        assertEquals(0, data.foodTaggedCount)
+        assertTrue(data.foodTagMix.isEmpty())
     }
 
     @Test

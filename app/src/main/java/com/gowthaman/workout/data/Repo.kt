@@ -290,6 +290,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         item: String,
         purpose: Purpose,
         scale: FoodScale,
+        tags: Set<FoodTag> = emptySet(),
         qty: Int = 1,
         notes: String = "",
     ) = mutate {
@@ -301,6 +302,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             item = Catalog.canonical(_foodCatalog.value.map { it.name }, name),
             purpose = purpose,
             scale = scale,
+            tags = tags,
             qty = qty.coerceAtLeast(1),
             notes = Csv.clean(notes),
             loggedAt = System.currentTimeMillis(),

@@ -4,6 +4,7 @@ import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.SleepQuality
@@ -78,6 +79,13 @@ data class Dashboard(
     val foodCount: Int = 0,
     val foodByPurpose: List<Pair<Purpose, Int>> = emptyList(),
     val foodScaleMix: List<Pair<FoodScale, Int>> = emptyList(),
+    /**
+     * Counts, not a mix: tags overlap (a dosa with curd is two of them) and are optional,
+     * so these neither sum to [foodCount] nor to each other. [foodTaggedCount] is what
+     * they are a share of, and travels with them everywhere they are shown.
+     */
+    val foodTagMix: List<Pair<FoodTag, Int>> = emptyList(),
+    val foodTaggedCount: Int = 0,
     val topFoods: List<Pair<String, Int>> = emptyList(),
     val cleanDayStreak: Int = 0,
     val lateNightSharePct: Int? = null,
@@ -205,6 +213,11 @@ object Stats {
                 .sortedByDescending { it.second },
             foodScaleMix = FoodScale.entries
                 .map { scale -> scale to periodFood.filter { it.scale == scale }.sumOf { it.qty } },
+            foodTagMix = FoodTag.entries
+                .map { tag -> tag to periodFood.filter { tag in it.tags }.sumOf { it.qty } }
+                .filter { it.second > 0 }
+                .sortedByDescending { it.second },
+            foodTaggedCount = periodFood.filter { it.tags.isNotEmpty() }.sumOf { it.qty },
             topFoods = periodFood
                 .groupBy { catalogKey(it.item) }.values
                 .map { rows -> rows.first().item to rows.sumOf { it.qty } }
