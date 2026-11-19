@@ -147,7 +147,7 @@ pipeline {
         }
         success {
             archiveArtifacts artifacts: 'app/build/outputs/apk/**/*.apk', fingerprint: true
-            archiveArtifacts artifacts: 'cli/build/libs/jotter.jar', fingerprint: true
+            archiveArtifacts artifacts: 'cli/build/libs/uncomplicated.jar', fingerprint: true
             // Release builds are minified, so keep the R8 mapping — without it a production
             // stack trace is unreadable, and it is not reproducible from a later build.
             archiveArtifacts artifacts: 'app/build/outputs/mapping/release/mapping.txt',
