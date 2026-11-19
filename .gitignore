@@ -15,3 +15,6 @@ captures/
 # Python bytecode; the assets folder ships inside the APK, so keep it out.
 __pycache__/
 *.pyc
+
+# Store listing assets: regenerated, not committed (see playstore/README.md)
+playstore/

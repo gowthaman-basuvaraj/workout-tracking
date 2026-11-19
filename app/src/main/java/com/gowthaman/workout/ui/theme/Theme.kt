@@ -34,6 +34,19 @@ private val LightColors = lightColorScheme(
     onSurfaceVariant = Color(0xFF43474C),
     outline = Color(0xFF73777D),
     outlineVariant = Color(0xFFC3C7CD),
+    // The container ramp has to be stated. Material's baseline is purple-tinted, so
+    // anything left unset here (the navigation bar reads surfaceContainer) comes out
+    // lavender next to the blue-grey everything else uses.
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF4F6F9),
+    surfaceContainer = Color(0xFFEEF1F5),
+    surfaceContainerHigh = Color(0xFFE8EBF0),
+    surfaceContainerHighest = Color(0xFFE2E6EC),
+    surfaceDim = Color(0xFFDADEE4),
+    surfaceBright = Color(0xFFFAFBFD),
+    inverseSurface = Color(0xFF2E3135),
+    inverseOnSurface = Color(0xFFF0F1F4),
+    inversePrimary = Color(0xFF9FCAF4),
 )
 
 private val DarkColors = darkColorScheme(
@@ -58,6 +71,16 @@ private val DarkColors = darkColorScheme(
     onSurfaceVariant = Color(0xFFC3C7CD),
     outline = Color(0xFF8D9197),
     outlineVariant = Color(0xFF43474C),
+    surfaceContainerLowest = Color(0xFF0C0F11),
+    surfaceContainerLow = Color(0xFF191C1F),
+    surfaceContainer = Color(0xFF1D2023),
+    surfaceContainerHigh = Color(0xFF272A2E),
+    surfaceContainerHighest = Color(0xFF323539),
+    surfaceDim = Color(0xFF111416),
+    surfaceBright = Color(0xFF373A3D),
+    inverseSurface = Color(0xFFE2E2E5),
+    inverseOnSurface = Color(0xFF2E3135),
+    inversePrimary = Color(0xFF2A5C8A),
 )
 
 /** Numbers sit next to each other constantly here, so they get a monospace style. */
