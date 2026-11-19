@@ -206,12 +206,18 @@ fun StatTile(
     }
 }
 
+/**
+ * @param small a quieter second rank, for things that qualify a pill rather than being
+ *   one in their own right. Same shape, so a row of them still lines up with the row
+ *   above it.
+ */
 @Composable
 fun Pill(
     text: String,
     modifier: Modifier = Modifier,
     container: Color = MaterialTheme.colorScheme.secondaryContainer,
     content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
+    small: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(50)
@@ -220,11 +226,15 @@ fun Pill(
             .clip(shape)
             .background(container)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 11.dp, vertical = 6.dp)
+            // Horizontal padding stays put so a small pill's text lines up with the text
+            // in the pill above it, not just its edge. Only the height and the type come
+            // down.
+            .padding(horizontal = 11.dp, vertical = if (small) 3.dp else 6.dp)
     ) {
         Text(
             text,
-            style = MaterialTheme.typography.labelMedium,
+            style = if (small) MaterialTheme.typography.labelSmall
+            else MaterialTheme.typography.labelMedium,
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

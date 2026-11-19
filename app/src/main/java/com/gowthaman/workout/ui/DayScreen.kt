@@ -478,15 +478,21 @@ private fun FoodRow(entry: FoodEntry, onDelete: () -> Unit) {
                     val (container, content) = scalePillColors(entry.scale)
                     Pill(entry.scale.label, container = container, content = content)
                 }
-                // Quieter than the pills and on its own line: purpose and rating are what
-                // every item has, tags are an aside on the ones that carry them.
+                // Their own line and a size down: purpose and rating are what every item
+                // has, tags are an aside on the ones that carry them. Same left edge and
+                // same shape as the row above, so the two lines read as one block.
                 if (entry.tags.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        FoodTag.labels(entry.tags),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Spacer(Modifier.height(5.dp))
+                    ChipFlow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        entry.tags.sortedBy { it.ordinal }.forEach { tag ->
+                            Pill(
+                                tag.label,
+                                container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                content = MaterialTheme.colorScheme.onSurfaceVariant,
+                                small = true,
+                            )
+                        }
+                    }
                 }
                 if (entry.notes.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))
