@@ -1,5 +1,6 @@
 package com.gowthaman.workout.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +36,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -239,6 +242,21 @@ fun Pill(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * A short confirmation.
+ *
+ * A toast rather than a snackbar because some of these fire as the screen is closing, and
+ * a snackbar lives inside the screen that is going away -- which is precisely the moment
+ * the message is worth reading.
+ */
+@Composable
+fun rememberToaster(): (String) -> Unit {
+    val context = LocalContext.current
+    return remember(context) {
+        { message: String -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
     }
 }
 

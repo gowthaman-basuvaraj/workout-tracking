@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,7 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
@@ -106,12 +108,42 @@ fun LogScreen(
     var kind by remember { mutableStateOf(lockedKind ?: initialKind) }
     var exercise by remember { mutableStateOf(initialExercise) }
 
+    val toast = rememberToaster()
+
+    // Done closes the screen; it does not save. Nothing on the way out said so, and a
+    // filled-in form simply vanished. Track whether anything was logged for the name
+    // currently in the picker, so leaving with unlogged input can say so first.
+    var loggedThisEntry by remember { mutableStateOf(false) }
+    var warnedOnce by remember { mutableStateOf(false) }
+    LaunchedEffect(kind, exercise) {
+        loggedThisEntry = false
+        warnedOnce = false
+    }
+
+    val onLogged: (String) -> Unit = { message ->
+        loggedThisEntry = true
+        warnedOnce = false
+        toast(message)
+    }
+
+    // Warn once, then take the second tap at its word -- never trap anyone on the screen.
+    // Sleep is exempt: its form has no name in the picker to judge by.
+    val leave: () -> Unit = {
+        val unlogged = kind != Kind.SLEEP && exercise.isNotBlank() && !loggedThisEntry
+        if (unlogged && !warnedOnce) {
+            warnedOnce = true
+            toast("Not logged yet - use the button at the bottom of the form")
+        } else {
+            onDone()
+        }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .imePadding()
     ) {
-        LogTopBar(date = date, onDone = onDone)
+        LogTopBar(date = date, onDone = leave)
         HorizontalDivider()
 
         Column(
@@ -154,6 +186,7 @@ fun LogScreen(
                     vm = vm,
                     date = date,
                     existing = remember(allSleep, date) { allSleep.firstOrNull { it.date == date } },
+                    onLogged = onLogged,
                 )
                 Spacer(Modifier.height(40.dp))
                 return@Column
@@ -203,6 +236,7 @@ fun LogScreen(
                     label = exercise,
                     catalog = stressCatalog,
                     allStress = allStress,
+                    onLogged = onLogged,
                 )
             } else if (kind == Kind.FOOD) {
                 FoodForm(
@@ -211,6 +245,7 @@ fun LogScreen(
                     item = exercise,
                     catalog = foodCatalog,
                     allFood = allFood,
+                    onLogged = onLogged,
                 )
             } else if (kind == Kind.STRENGTH) {
                 StrengthForm(
@@ -219,6 +254,7 @@ fun LogScreen(
                     exercise = exercise,
                     settings = settings,
                     history = remember(allSets, exercise) { sessionsOf(allSets, exercise) },
+                    onLogged = onLogged,
                 )
             } else {
                 CardioForm(
@@ -227,6 +263,7 @@ fun LogScreen(
                     activity = exercise,
                     settings = settings,
                     history = remember(allCardio, exercise) { cardioOf(allCardio, exercise) },
+                    onLogged = onLogged,
                 )
             }
 
@@ -307,6 +344,7 @@ private fun ExercisePicker(
 
 @Composable
 private fun StrengthForm(
+    onLogged: (String) -> Unit,
     vm: AppViewModel,
     date: LocalDate,
     exercise: String,
@@ -415,15 +453,23 @@ private fun StrengthForm(
 
         Button(
             onClick = {
+                val load = weight.toNumberOrNull() ?: 0.0
                 vm.addSet(
                     date = date,
                     exercise = exercise,
                     reps = repCount,
-                    weight = weight.toNumberOrNull() ?: 0.0,
+                    weight = load,
                     bodyweight = bodyweight,
                     notes = notes,
                 )
                 notes = ""
+                onLogged(
+                    "Logged $exercise - $repCount reps " + when {
+                        bodyweight && load <= 0 -> "at bodyweight"
+                        bodyweight -> "at BW +${load.fmt(1)} ${settings.weightUnit}"
+                        else -> "@ ${load.fmt(1)} ${settings.weightUnit}"
+                    }
+                )
             },
             enabled = canAdd,
             modifier = Modifier.fillMaxWidth(),
@@ -562,6 +608,7 @@ private fun SuggestionCard(
 
 @Composable
 private fun CardioForm(
+    onLogged: (String) -> Unit,
     vm: AppViewModel,
     date: LocalDate,
     activity: String,
@@ -653,6 +700,10 @@ private fun CardioForm(
             onClick = {
                 vm.addCardio(date, activity, totalSec, dist, notes)
                 minutes = ""; seconds = ""; distance = ""; notes = ""
+                onLogged(
+                    "Logged $activity - ${formatDurationLong(totalSec)}" +
+                        if (dist > 0) ", ${dist.fmt(2)} ${settings.distanceUnit}" else ""
+                )
             },
             enabled = activity.isNotBlank() && (totalSec > 0 || dist > 0),
             modifier = Modifier.fillMaxWidth(),
@@ -787,7 +838,12 @@ private fun CardioSuggestionCard(
 // ---------------------------------------------------------------------- sleep
 
 @Composable
-private fun SleepForm(vm: AppViewModel, date: LocalDate, existing: SleepNight?) {
+private fun SleepForm(
+    vm: AppViewModel,
+    date: LocalDate,
+    existing: SleepNight?,
+    onLogged: (String) -> Unit,
+) {
     var duration by remember(date, existing) {
         mutableStateOf(existing?.let { formatSleep(it.durationMin).replace(" ", "") } ?: "")
     }
@@ -857,7 +913,17 @@ private fun SleepForm(vm: AppViewModel, date: LocalDate, existing: SleepNight?) 
 
         val minutes = parseSleepDuration(duration)
         Button(
-            onClick = { minutes?.let { vm.addSleep(date, it, quality, notes) } },
+            onClick = {
+                minutes?.let {
+                    vm.addSleep(date, it, quality, notes)
+                    // One night per day, so a second save replaces rather than adds -- the
+                    // wording has to say which happened.
+                    onLogged(
+                        (if (existing == null) "Logged " else "Replaced with ") +
+                            "${formatSleep(it)} / ${quality.label.lowercase()}"
+                    )
+                }
+            },
             enabled = minutes != null,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -897,6 +963,7 @@ fun stressPickerNames(catalog: List<StressDef>): List<String> =
 
 @Composable
 private fun StressForm(
+    onLogged: (String) -> Unit,
     vm: AppViewModel,
     date: LocalDate,
     label: String,
@@ -959,6 +1026,7 @@ private fun StressForm(
             onClick = {
                 vm.addStress(date, label, direction, weight, notes)
                 notes = ""
+                onLogged("Logged $label - ${direction.label.lowercase()}")
             },
             enabled = label.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
@@ -1012,6 +1080,7 @@ fun foodPickerNames(catalog: List<FoodDef>): List<String> =
 
 @Composable
 private fun FoodForm(
+    onLogged: (String) -> Unit,
     vm: AppViewModel,
     date: LocalDate,
     item: String,
@@ -1103,9 +1172,11 @@ private fun FoodForm(
 
         Button(
             onClick = {
-                vm.addFood(date, item, purpose, scale, tags, qty.toIntOrNull() ?: 1, notes)
+                val count = qty.toIntOrNull() ?: 1
+                vm.addFood(date, item, purpose, scale, tags, count, notes)
                 qty = "1"
                 notes = ""
+                onLogged("Logged " + (if (count > 1) "$count x $item" else item))
             },
             enabled = item.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
