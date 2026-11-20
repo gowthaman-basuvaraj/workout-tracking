@@ -487,9 +487,9 @@ private fun FoodRow(entry: FoodEntry, onDelete: () -> Unit) {
                         entry.tags.sortedBy { it.ordinal }.forEach { tag ->
                             Pill(
                                 tag.label,
-                                container = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 content = MaterialTheme.colorScheme.onSurfaceVariant,
                                 small = true,
+                                outlined = true,
                             )
                         }
                     }
@@ -498,6 +498,9 @@ private fun FoodRow(entry: FoodEntry, onDelete: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         entry.notes,
+                        // Indented by a pill's own padding so it starts under the pill
+                        // text above rather than under the pill's edge.
+                        modifier = Modifier.padding(start = 11.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

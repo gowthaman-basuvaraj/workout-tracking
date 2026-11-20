@@ -124,6 +124,11 @@ fun LogScreen(
         loggedThisEntry = true
         warnedOnce = false
         toast(message)
+        // Clearing the picker is the visible half of the confirmation: the form you just
+        // filled in is gone, so there is nothing to wonder about. Strength is the
+        // exception -- its button says "Add set 2" because sets come in threes, and
+        // retyping the exercise between them would be absurd.
+        if (kind != Kind.STRENGTH) exercise = ""
     }
 
     // Warn once, then take the second tap at its word -- never trap anyone on the screen.

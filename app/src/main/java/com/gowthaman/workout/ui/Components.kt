@@ -3,6 +3,7 @@ package com.gowthaman.workout.ui
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -213,6 +214,11 @@ fun StatTile(
  * @param small a quieter second rank, for things that qualify a pill rather than being
  *   one in their own right. Same shape, so a row of them still lines up with the row
  *   above it.
+ * @param outlined drawn as an outline instead of a fill. A third fill would have to sit
+ *   between the card and the filled pills on it, and in dark mode there is no room left
+ *   there -- every candidate lands within a few percent of the card itself. An outline
+ *   reads at a glance in both themes and says "different kind of thing" rather than
+ *   "same thing, fainter".
  */
 @Composable
 fun Pill(
@@ -221,13 +227,18 @@ fun Pill(
     container: Color = MaterialTheme.colorScheme.secondaryContainer,
     content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     small: Boolean = false,
+    outlined: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(50)
     Box(
         modifier
             .clip(shape)
-            .background(container)
+            .background(if (outlined) Color.Transparent else container)
+            .then(
+                if (outlined) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                else Modifier
+            )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             // Horizontal padding stays put so a small pill's text lines up with the text
             // in the pill above it, not just its edge. Only the height and the type come
