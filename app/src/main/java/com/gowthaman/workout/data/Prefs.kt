@@ -12,6 +12,21 @@ class Prefs(context: Context) {
     private val _state = MutableStateFlow(read())
     val state: StateFlow<Settings> = _state
 
+    /**
+     * Whether the first-run nudge towards the guide has been answered.
+     *
+     * Deliberately not part of [Settings]: that type is published into the data folder as
+     * settings.csv for desktop tools to read, and whether someone dismissed a card on
+     * this phone is nobody else's business.
+     */
+    private val _guideSeen = MutableStateFlow(sp.getBoolean(K_GUIDE_SEEN, false))
+    val guideSeen: StateFlow<Boolean> = _guideSeen
+
+    fun markGuideSeen() {
+        sp.edit().putBoolean(K_GUIDE_SEEN, true).apply()
+        _guideSeen.value = true
+    }
+
     val current: Settings get() = _state.value
 
     private fun read() = Settings(
@@ -55,5 +70,6 @@ class Prefs(context: Context) {
         const val K_BW_CEILING = "bw_rep_ceiling"
         const val K_BODYWEIGHT = "user_bodyweight_kg"
         const val K_PERIOD_VIEW = "dashboard_period"
+        const val K_GUIDE_SEEN = "guide_seen"
     }
 }

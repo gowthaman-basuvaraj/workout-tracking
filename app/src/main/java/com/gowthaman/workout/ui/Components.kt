@@ -479,6 +479,25 @@ fun IconTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modif
     TextButton(onClick = onClick, modifier = modifier) { Text(text) }
 }
 
+/** The same button for an icon that comes from a drawable rather than the icon set. */
+@Composable
+fun SmallIconButton(
+    painter: androidx.compose.ui.graphics.painter.Painter,
+    description: String,
+    modifier: Modifier = Modifier,
+    tint: Color? = null,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, modifier = modifier.size(36.dp)) {
+        Icon(
+            painter,
+            contentDescription = description,
+            modifier = Modifier.size(19.dp),
+            tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 fun SmallIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

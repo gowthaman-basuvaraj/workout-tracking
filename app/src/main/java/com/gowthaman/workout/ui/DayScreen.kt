@@ -45,6 +45,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
+import androidx.compose.ui.res.painterResource
+import com.gowthaman.workout.R
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.FoodScale
@@ -69,9 +71,11 @@ fun DayScreen(
     vm: AppViewModel,
     onLog: (Kind, String?) -> Unit,
     onOpenExercise: (String) -> Unit,
+    onOpenGuide: () -> Unit,
 ) {
     val day by vm.day.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val guideSeen by vm.guideSeen.collectAsStateWithLifecycle()
     val today = LocalDate.now()
 
     var confirmDelete by remember { mutableStateOf<ExerciseSession?>(null) }
@@ -100,6 +104,7 @@ fun DayScreen(
                 onPick = vm::selectDate,
                 onToday = vm::goToToday,
                 onRefresh = vm::refresh,
+                onHelp = onOpenGuide,
             )
 
             HorizontalDivider()
@@ -111,6 +116,29 @@ fun DayScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Shown once, answered once, and never again whichever way it is
+                // answered -- the (?) in the bar above is always there afterwards.
+                if (!guideSeen) {
+                    item {
+                        SectionCard(title = "new here?") {
+                            Text(
+                                "Two minutes on how this works: where your data lives, how " +
+                                    "logging goes, and what the app deliberately does not do.",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                FilledTonalButton(onClick = {
+                                    vm.markGuideSeen()
+                                    onOpenGuide()
+                                }) { Text("Read it") }
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(onClick = { vm.markGuideSeen() }) { Text("No thanks") }
+                            }
+                        }
+                    }
+                }
+
                 if (day.isEmpty) {
                     item {
                         EmptyState(
@@ -247,6 +275,7 @@ private fun DateNavigator(
     onPick: (LocalDate) -> Unit,
     onToday: () -> Unit,
     onRefresh: () -> Unit,
+    onHelp: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -256,6 +285,7 @@ private fun DateNavigator(
             .padding(horizontal = 6.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        SmallIconButton(painterResource(R.drawable.ic_help), "How it works", onClick = onHelp)
         SmallIconButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous day") { onShift(-1) }
 
         Column(

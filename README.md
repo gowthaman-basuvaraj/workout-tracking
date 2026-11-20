@@ -125,6 +125,12 @@ message, and you supply the reaction.
 range, bodyweight rep ceiling, kg/lb, km/mi, and your bodyweight (optional — it makes
 bodyweight exercises contribute real tonnage to the volume charts).
 
+**How it works.** A short guide behind the `?` on the day screen, and in Settings. First
+run offers it once and never mentions it again whichever way you answer. It is a list of
+sections rendered by about forty lines of Compose rather than HTML in a WebView: that way
+it inherits the app's palette, dark mode and text scaling instead of restating them in
+CSS, and the app keeps having no browser engine in it.
+
 ## Your data
 
 On first run you pick a folder. Everything goes there as CSV:

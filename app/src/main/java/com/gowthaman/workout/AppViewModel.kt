@@ -61,6 +61,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = Repo(app, prefs)
 
     val settings: StateFlow<Settings> = prefs.state
+
+    val guideSeen: StateFlow<Boolean> = prefs.guideSeen
+
+    fun markGuideSeen() = prefs.markGuideSeen()
     val status: StateFlow<Repo.Status> = repo.status
     val error: StateFlow<String?> = repo.error
     val strength: StateFlow<List<StrengthSet>> = repo.strength

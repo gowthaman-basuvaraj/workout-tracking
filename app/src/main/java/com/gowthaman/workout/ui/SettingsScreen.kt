@@ -37,7 +37,7 @@ import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.fmt
 
 @Composable
-fun SettingsScreen(vm: AppViewModel) {
+fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val sets by vm.strength.collectAsStateWithLifecycle()
     val cardio by vm.cardio.collectAsStateWithLifecycle()
@@ -213,6 +213,8 @@ fun SettingsScreen(vm: AppViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(onClick = onOpenGuide) { Text("How it works") }
         }
 
         Spacer(Modifier.height(24.dp))

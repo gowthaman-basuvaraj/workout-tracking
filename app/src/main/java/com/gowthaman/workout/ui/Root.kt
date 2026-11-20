@@ -51,6 +51,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 
 object Routes {
     const val LOG = "log"
+    const val GUIDE = "guide"
 
     fun log(date: LocalDate, kind: Kind, exercise: String? = null): String =
         "$LOG?date=$date&kind=${kind.name}&exercise=${Uri.encode(exercise.orEmpty())}"
@@ -120,6 +121,7 @@ fun Root(vm: AppViewModel) {
                         nav.navigate(Routes.log(vm.selectedDate.value, kind, exercise))
                     },
                     onOpenExercise = { nav.navigate(Routes.exercise(it)) },
+                    onOpenGuide = { nav.navigate(Routes.GUIDE) },
                 )
             }
 
@@ -138,7 +140,11 @@ fun Root(vm: AppViewModel) {
             }
 
             composable(Tab.SETTINGS.route) {
-                SettingsScreen(vm = vm)
+                SettingsScreen(vm = vm, onOpenGuide = { nav.navigate(Routes.GUIDE) })
+            }
+
+            composable(Routes.GUIDE) {
+                GuideScreen(onBack = { nav.popBackStack() })
             }
 
             composable("exercise/{name}") { entry ->
