@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -65,6 +67,14 @@ fun Root(vm: AppViewModel) {
 
     if (status == Repo.Status.NO_FOLDER) {
         FolderGate(onPick = vm::useFolder)
+        return
+    }
+
+    // Only ever the very first load. A refresh leaves the data that is already on screen
+    // alone, because replacing a day you are looking at with a spinner would be worse
+    // than a slightly stale number for a moment.
+    if (status == Repo.Status.LOADING) {
+        LoadingGate()
         return
     }
 
@@ -186,6 +196,37 @@ fun Root(vm: AppViewModel) {
 }
 
 /** First-run screen: nothing can be logged until there is somewhere to log it to. */
+/**
+ * Shown while the folder is being read for the first time.
+ *
+ * Deliberately says which folder work is happening in: a synced folder on a slow
+ * provider can take a few seconds, and "reading your folder" explains that, where a bare
+ * spinner leaves someone wondering whether the app has lost everything.
+ */
+@Composable
+private fun LoadingGate() {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Column(
+                Modifier.padding(32.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            ) {
+                Text("Uncomplicated", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "Reading your folder",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                CircularProgressIndicator(
+                    modifier = Modifier.padding(top = 24.dp).size(28.dp),
+                    strokeWidth = 3.dp,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun FolderGate(onPick: (Uri) -> Unit) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->

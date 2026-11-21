@@ -34,8 +34,29 @@ class Repo(context: Context, private val prefs: Prefs) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val writeLock = Mutex()
 
-    private val _status = MutableStateFlow(Status.NO_FOLDER)
+    /**
+     * Seeded from the saved folder rather than from NO_FOLDER.
+     *
+     * The folder is in SharedPreferences and is known synchronously, but the load is
+     * not. Starting at NO_FOLDER meant that between construction and the loading
+     * coroutine actually running, the app said it had no folder -- and the first-run
+     * picker appeared, telling someone with years of entries that there was nothing
+     * there. A second or two of that is genuinely frightening.
+     */
+    private val _status = MutableStateFlow(
+        if (prefs.current.folderUri != null) Status.LOADING else Status.NO_FOLDER
+    )
     val status: StateFlow<Status> = _status.asStateFlow()
+
+    /**
+     * Whether a load has ever finished.
+     *
+     * LOADING means "there has never been anything on screen", which is the only time a
+     * full-screen loading state is the right answer. The refresh on every onResume must
+     * not throw the screen away and start again; it has real data to leave up.
+     */
+    @Volatile
+    private var everLoaded = false
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -107,6 +128,8 @@ class Repo(context: Context, private val prefs: Prefs) {
         }
         prefs.update { it.copy(folderUri = uri.toString()) }
         docsEnsured = false
+        // A different folder holds different data, so this is a first load again.
+        everLoaded = false
         reload()
     }
 
@@ -124,6 +147,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         storedOnly = emptyList()
         storedFoodOnly = emptyList()
         storedStressOnly = emptyList()
+        everLoaded = false
         _status.value = Status.NO_FOLDER
     }
 
@@ -133,12 +157,14 @@ class Repo(context: Context, private val prefs: Prefs) {
             _status.value = Status.NO_FOLDER
             return
         }
+        // Set before the coroutine, not inside it: the gap between the two is exactly
+        // the window the screen was getting wrong.
+        if (!everLoaded) _status.value = Status.LOADING
         scope.launch {
             // Shares the write lock: a load must never interleave with a write, and two
             // loads must never race each other (startup and the onResume refresh overlap,
             // and both would otherwise try to create the folder's README side by side).
             writeLock.withLock {
-                _status.value = Status.LOADING
                 try {
                     val snapshot = withContext(Dispatchers.IO) {
                         if (!docsEnsured) {
@@ -164,6 +190,7 @@ class Repo(context: Context, private val prefs: Prefs) {
                         }
                     }
                     _error.value = null
+                    everLoaded = true
                     _status.value = Status.READY
                 } catch (t: Throwable) {
                     _error.value = t.message ?: "Could not read the data folder."
