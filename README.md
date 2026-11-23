@@ -275,6 +275,21 @@ reports exactly that as an error.
 
 They also work as Gradle properties (`-PRELEASE_STORE_FILE=...`) if you prefer.
 
+### Versioning
+
+`versionCode` is the commit count (`git rev-list --count HEAD`) and `versionName` is the
+latest tag, or `1.0` until there is one. Nothing to remember before a release: tag when
+the name should change, and the code takes care of itself.
+
+Play rejects an upload whose `versionCode` is not strictly higher than the last, and a
+number once used is burned forever — so both ways of getting it wrong fail the build
+rather than producing a number quietly. Building outside a git checkout is an error, and
+so is a commit count below the floor in `app/build.gradle.kts`, which is what a shallow
+clone (`--depth 1`) looks like: it answers `1`, and that would look perfectly normal.
+
+Deliberately not Jenkins' `BUILD_NUMBER` — it is per-job, so recreating the job resets it
+to 1 and every later upload is refused until the count climbs past what was already used.
+
 Without those variables the build still succeeds but emits `app-release-unsigned.apk`
 instead — which is what CI checks for, so an unsigned APK can never be archived as a
 release. CI verifies the bundle's signature separately, for the reason above. Keep `app/build/outputs/mapping/release/mapping.txt` for any build you ship;

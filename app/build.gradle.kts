@@ -12,6 +12,46 @@ fun secret(name: String): String? =
 
 val releaseStoreFile: String? = secret("RELEASE_STORE_FILE")
 
+/**
+ * The version code is the number of commits, which only ever goes up and is the same
+ * number whoever builds it -- Jenkins, a laptop, anyone.
+ *
+ * Play enforces this one harder than anything else in the manifest: an upload whose
+ * version code is not strictly higher than the last is rejected, and a number once used
+ * can never be reused. So the failure mode to design against is not "wrong", it is
+ * "wrong and quiet". Both ways of getting it wrong therefore stop the build.
+ *
+ * Not Jenkins' BUILD_NUMBER: that is per-job, so recreating the job resets it to 1 and
+ * every later upload is refused until the count climbs past whatever was already used.
+ */
+private val MIN_VERSION_CODE = 24   // the commit count when this was wired up
+
+private fun git(vararg args: String): String? = runCatching {
+    providers.exec { commandLine("git", "-C", rootDir.absolutePath, *args) }
+        .standardOutput.asText.get().trim().ifBlank { null }
+}.getOrNull()
+
+val gitVersionCode: Int = run {
+    val count = git("rev-list", "--count", "HEAD")?.toIntOrNull()
+        ?: error(
+            "Cannot read the git history, so there is no version code to use. Build from " +
+                "a git checkout: a guessed number here is either rejected by Play or burns " +
+                "a version that can never be used again."
+        )
+    // A shallow clone answers 1, which would look perfectly normal and be permanent.
+    check(count >= MIN_VERSION_CODE) {
+        "git says $count commits, which is below the $MIN_VERSION_CODE this project had " +
+            "when versioning was wired up. That means a shallow clone (--depth). Fetch " +
+            "the full history; the version code must count every commit."
+    }
+    count
+}
+
+/** The latest tag if there is one, so the listing shows something a person chose. */
+val gitVersionName: String = git("describe", "--tags", "--abbrev=0")
+    ?.removePrefix("v")
+    ?: "1.0"
+
 android {
     namespace = "com.gowthaman.workout"
     compileSdk = 36
@@ -24,8 +64,8 @@ android {
         applicationId = "life.uncomplicated"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitVersionCode
+        versionName = gitVersionName
     }
 
     signingConfigs {
