@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -23,12 +24,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -248,6 +256,16 @@ fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
 /**
  * A number field that only writes the setting when editing finishes, so a half-typed value
  * never clamps itself out from under the cursor.
+ *
+ * "Editing finishes" has three meanings here, and all of them save, because the one that
+ * used to be the only one was the one nobody could see. The save button sat under the
+ * field, under the help text — which is under the keyboard the moment you tap in. A value
+ * could sit there unsaved for days.
+ *
+ *  - The tick inside the field, which is level with what you just typed.
+ *  - The keyboard's own done key, which is on the thing covering everything else.
+ *  - Moving focus away, because leaving a field you have finished with is not a reason to
+ *    throw the number away.
  */
 @Composable
 private fun NumberSetting(
@@ -260,6 +278,12 @@ private fun NumberSetting(
     decimal: Boolean = false,
 ) {
     var text by remember(value) { mutableStateOf(value) }
+    // Focus arrives unfocused, so without this the first composition would count as
+    // leaving the field and commit a value nobody typed.
+    var everFocused by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+
+    val commit = { if (text != value) onCommit(text) }
 
     Column(modifier) {
         OutlinedTextField(
@@ -270,28 +294,40 @@ private fun NumberSetting(
             },
             label = { Text(label) },
             suffix = suffix?.let { { Text(it) } },
+            // In the field rather than under it, so it is where your eye already is and
+            // the keyboard cannot hide it. It appears only when there is a change to
+            // save, and inside the field it can appear without moving anything.
+            trailingIcon = {
+                if (text != value) {
+                    IconButton(onClick = { commit(); focus.clearFocus() }) {
+                        Icon(Icons.Filled.Check, contentDescription = "Save $label")
+                    }
+                }
+            },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
-                keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number
+                keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number,
+                imeAction = ImeAction.Done,
             ),
-            modifier = Modifier.fillMaxWidth(),
+            keyboardActions = KeyboardActions(onDone = { commit(); focus.clearFocus() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { state ->
+                    if (state.isFocused) {
+                        everFocused = true
+                    } else if (everFocused) {
+                        everFocused = false
+                        commit()
+                    }
+                },
         )
-        Row(Modifier.fillMaxWidth()) {
-            if (help != null) {
-                Text(
-                    help,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(top = 4.dp),
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-            if (text != value) {
-                TextButton(onClick = { onCommit(text) }) { Text("Save") }
-            }
+        if (help != null) {
+            Text(
+                help,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
