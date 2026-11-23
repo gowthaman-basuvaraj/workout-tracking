@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import android.Manifest
+import android.app.TimePickerDialog
+import android.os.Build
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -28,13 +31,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import com.gowthaman.workout.logic.ReminderSchedule
+import com.gowthaman.workout.notify.ReminderAlarm
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,6 +58,7 @@ import com.gowthaman.workout.data.fmt
 @Composable
 fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val reminder by vm.reminder.collectAsStateWithLifecycle()
     val sets by vm.strength.collectAsStateWithLifecycle()
     val cardio by vm.cardio.collectAsStateWithLifecycle()
 
@@ -213,6 +225,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
             )
         }
 
+        ReminderCard(
+            schedule = reminder,
+            onChange = vm::updateReminder,
+        )
+
         SectionCard(title = "about") {
             Text(
                 "Uncomplicated keeps everything on your device, in files you own. There is no " +
@@ -329,6 +346,143 @@ private fun NumberSetting(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
+    }
+}
+
+/**
+ * The reminder settings: off until someone switches it on, and silent until they have
+ * also picked at least one day.
+ *
+ * Switching on asks for the notification permission first, and stays off if it is
+ * refused. Showing a switch as "on" when the platform will drop every notification would
+ * be a lie the app tells once and the user discovers a week later.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderCard(
+    schedule: ReminderSchedule,
+    onChange: ((ReminderSchedule) -> ReminderSchedule) -> Unit,
+) {
+    val context = LocalContext.current
+    var deniedNotice by remember { mutableStateOf(false) }
+
+    val askPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        deniedNotice = !granted
+        if (granted) onChange { it.copy(enabled = true) }
+    }
+
+    SectionCard(title = "reminders") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Remind me to log", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    if (schedule.isActive) "At ${schedule.timeLabel} on ${daysLabel(schedule.days)}"
+                    else if (schedule.enabled) "On, but no days chosen — nothing will fire"
+                    else "Off. Nothing is scheduled.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = schedule.enabled,
+                onCheckedChange = { wanted ->
+                    deniedNotice = false
+                    when {
+                        !wanted -> onChange { it.copy(enabled = false) }
+                        ReminderAlarm.canPost(context) -> onChange { it.copy(enabled = true) }
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                            askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        else -> onChange { it.copy(enabled = true) }
+                    }
+                },
+            )
+        }
+
+        if (deniedNotice) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Android refused the notification permission, so the reminder stays off. " +
+                    "You can grant it in the system app settings and switch this on again.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (schedule.enabled) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "AT",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            FilledTonalButton(onClick = {
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute -> onChange { it.copy(hour = hour, minute = minute) } },
+                    schedule.hour,
+                    schedule.minute,
+                    true,
+                ).show()
+            }) { Text(schedule.timeLabel) }
+
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "ON",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            ChipFlow {
+                DayOfWeek.entries.forEach { day ->
+                    FilterChip(
+                        selected = day in schedule.days,
+                        onClick = {
+                            onChange {
+                                it.copy(
+                                    days = if (day in it.days) it.days - day else it.days + day
+                                )
+                            }
+                        },
+                        label = {
+                            Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "One notification, asking whether there is anything to write down. It does " +
+                    "not know or care whether you logged anything, and it will never say " +
+                    "you missed a day.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Android decides exactly when to deliver it, so it can arrive a little " +
+                    "after the time you pick. Asking for it to the minute would mean " +
+                    "asking for the alarm-clock permission, which a nudge does not need.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** "every day", "weekdays", or the short names. */
+private fun daysLabel(days: Set<DayOfWeek>): String {
+    val all = DayOfWeek.entries.toSet()
+    val weekdays = all - setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+    return when (days) {
+        all -> "every day"
+        weekdays -> "weekdays"
+        setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) -> "weekends"
+        else -> DayOfWeek.entries.filter { it in days }
+            .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
     }
 }
 

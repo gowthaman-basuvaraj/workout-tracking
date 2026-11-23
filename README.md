@@ -125,6 +125,18 @@ message, and you supply the reaction.
 range, bodyweight rep ceiling, kg/lb, km/mi, and your bodyweight (optional — it makes
 bodyweight exercises contribute real tonnage to the volume charts).
 
+**Reminders — off until you ask.** Nothing is scheduled until you switch them on in
+Settings and pick at least one day of the week, plus a time. The notification asks whether
+there is anything to write down; it does not check whether you logged anything and never
+says you missed a day.
+
+Local only. `AlarmManager` and a `BroadcastReceiver`, no Firebase, no push service, no new
+dependency, and still no `INTERNET` permission in the manifest. The alarm is inexact
+(`setAndAllowWhileIdle`) so it needs no exact-alarm permission and still fires in Doze —
+Android may deliver it up to an hour late, which the settings screen says plainly rather
+than implying a precision it has not got. A receiver on `BOOT_COMPLETED` and
+`MY_PACKAGE_REPLACED` re-arms it, since both drop pending alarms.
+
 **How it works.** A short guide behind the `?` on the day screen, and in Settings. First
 run offers it once and never mentions it again whichever way you answer. It is a list of
 sections rendered by about forty lines of Compose rather than HTML in a WebView: that way

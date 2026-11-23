@@ -241,6 +241,25 @@ private val GUIDE: List<GuideSection> = listOf(
         ),
     ),
     GuideSection(
+        "Reminders",
+        listOf(
+            para(
+                "Off until you turn them on in Settings, and silent until you have also " +
+                    "picked at least one day. Nothing is scheduled before that."
+            ),
+            para(
+                "The notification asks whether there is anything to write down. It does " +
+                    "not check whether you logged anything and it will never tell you that " +
+                    "you missed a day — it is a door, not a verdict."
+            ),
+            para(
+                "It is scheduled on the phone itself. There is no push service and no " +
+                    "server involved, which is why the app still asks for no network " +
+                    "permission."
+            ),
+        ),
+    ),
+    GuideSection(
         "From a laptop",
         listOf(
             para(

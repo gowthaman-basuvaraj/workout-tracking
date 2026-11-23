@@ -1,0 +1,15 @@
+<!--
+  The mark again, drawn to fill 24dp. A notification small icon is flattened to a single
+  colour by the platform, which the three strokes already are.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M4,7 L20,7  M4,12 L16,12  M4,17 L12,17" />
+</vector>

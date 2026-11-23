@@ -20,6 +20,8 @@ import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
+import com.gowthaman.workout.logic.ReminderSchedule
+import com.gowthaman.workout.notify.ReminderAlarm
 import com.gowthaman.workout.data.Prefs
 import com.gowthaman.workout.data.Repo
 import com.gowthaman.workout.data.Settings
@@ -65,6 +67,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val guideSeen: StateFlow<Boolean> = prefs.guideSeen
 
     fun markGuideSeen() = prefs.markGuideSeen()
+
+    val reminder: StateFlow<ReminderSchedule> = prefs.reminder
+
+    /**
+     * Every change re-arms the alarm, including the change that switches it off, which
+     * cancels instead. Writing the preference without doing this would leave the phone
+     * buzzing on yesterday's schedule.
+     */
+    fun updateReminder(block: (ReminderSchedule) -> ReminderSchedule) {
+        prefs.updateReminder(block)
+        ReminderAlarm.apply(getApplication(), prefs.reminder.value)
+    }
     val status: StateFlow<Repo.Status> = repo.status
     val error: StateFlow<String?> = repo.error
     val strength: StateFlow<List<StrengthSet>> = repo.strength
