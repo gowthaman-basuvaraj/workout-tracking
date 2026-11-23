@@ -20,7 +20,8 @@ import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
-import com.gowthaman.workout.logic.ReminderSchedule
+import com.gowthaman.workout.logic.Reminder
+import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.notify.ReminderAlarm
 import com.gowthaman.workout.data.Prefs
 import com.gowthaman.workout.data.Repo
@@ -68,16 +69,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun markGuideSeen() = prefs.markGuideSeen()
 
-    val reminder: StateFlow<ReminderSchedule> = prefs.reminder
+    val reminders: StateFlow<ReminderSettings> = prefs.reminders
 
     /**
-     * Every change re-arms the alarm, including the change that switches it off, which
+     * Every change re-arms every alarm, including the change that switches them off, which
      * cancels instead. Writing the preference without doing this would leave the phone
      * buzzing on yesterday's schedule.
      */
-    fun updateReminder(block: (ReminderSchedule) -> ReminderSchedule) {
-        prefs.updateReminder(block)
-        ReminderAlarm.apply(getApplication(), prefs.reminder.value)
+    fun updateReminders(block: (ReminderSettings) -> ReminderSettings) {
+        prefs.updateReminders(block)
+        ReminderAlarm.applyAll(getApplication(), prefs.reminders.value)
+    }
+
+    fun addReminder(label: String, hour: Int, minute: Int) = updateReminders { settings ->
+        settings.copy(
+            reminders = settings.reminders + Reminder(
+                id = settings.nextId(),
+                label = label,
+                hour = hour,
+                minute = minute,
+                // Everything on by default: you have already switched reminders on and
+                // asked for this one by name, so asking which days as well is a step too
+                // many. Unticking is one tap.
+                days = java.time.DayOfWeek.entries.toSet(),
+            )
+        )
+    }
+
+    fun editReminder(id: Int, block: (Reminder) -> Reminder) = updateReminders { settings ->
+        settings.copy(reminders = settings.reminders.map { if (it.id == id) block(it) else it })
+    }
+
+    /** Cancels first: the alarm outlives the reminder otherwise, pending and orphaned. */
+    fun removeReminder(id: Int) {
+        ReminderAlarm.cancel(getApplication(), id)
+        updateReminders { it.copy(reminders = it.reminders.filterNot { r -> r.id == id }) }
     }
     val status: StateFlow<Repo.Status> = repo.status
     val error: StateFlow<String?> = repo.error

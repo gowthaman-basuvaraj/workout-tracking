@@ -125,13 +125,21 @@ message, and you supply the reaction.
 range, bodyweight rep ceiling, kg/lb, km/mi, and your bodyweight (optional — it makes
 bodyweight exercises contribute real tonnage to the volume charts).
 
-**Reminders — off until you ask.** Nothing is scheduled until you switch them on in
-Settings and pick at least one day of the week, plus a time. The notification asks whether
-there is anything to write down; it does not check whether you logged anything and never
-says you missed a day.
+**Reminders — off until you ask, and as many as you want.** Nothing is scheduled until you
+switch them on in Settings. Then add as many as you like — Breakfast, Lunch, Dinner and
+Bedtime are one tap each, or name your own — and give each one its own time and days. A
+reminder with no days ticked never fires, and the row says so rather than quietly doing
+nothing.
+
+Each notification asks whether there is anything to write down. None of them check whether
+you logged anything and none will ever say you missed a day.
 
 Local only. `AlarmManager` and a `BroadcastReceiver`, no Firebase, no push service, no new
-dependency, and still no `INTERNET` permission in the manifest. The alarm is inexact
+dependency, and still no `INTERNET` permission in the manifest. Each reminder owns one
+pending alarm and one notification slot, both addressed by a small id that is never reused
+— so editing one replaces its alarm instead of adding a second, breakfast cannot overwrite
+dinner's notification, and a deleted reminder's still-pending alarm finds nothing and
+stops. The alarm is inexact
 (`setAndAllowWhileIdle`) so it needs no exact-alarm permission and still fires in Doze —
 Android may deliver it up to an hour late, which the settings screen says plainly rather
 than implying a precision it has not got. A receiver on `BOOT_COMPLETED` and

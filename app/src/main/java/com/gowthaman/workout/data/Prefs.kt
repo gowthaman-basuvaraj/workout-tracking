@@ -1,10 +1,11 @@
 package com.gowthaman.workout.data
 
 import android.content.Context
-import com.gowthaman.workout.logic.ReminderSchedule
+import com.gowthaman.workout.logic.ReminderCodec
+import com.gowthaman.workout.logic.ReminderSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.time.DayOfWeek
+
 
 class Prefs(context: Context) {
 
@@ -30,34 +31,27 @@ class Prefs(context: Context) {
     }
 
     /**
-     * The reminder schedule, also kept out of [Settings] and so out of settings.csv.
+     * The reminders, also kept out of [Settings] and so out of settings.csv.
      *
      * That file exists so desktop tools agree with the app about units and the overload
      * window. What time a particular phone buzzes is not something the CLI has any use
      * for, and one folder can be synced to more than one device.
      */
-    private val _reminder = MutableStateFlow(readReminder())
-    val reminder: StateFlow<ReminderSchedule> = _reminder
+    private val _reminders = MutableStateFlow(readReminders())
+    val reminders: StateFlow<ReminderSettings> = _reminders
 
-    private fun readReminder() = ReminderSchedule(
+    private fun readReminders() = ReminderSettings(
         enabled = sp.getBoolean(K_REMIND_ON, false),
-        hour = sp.getInt(K_REMIND_HOUR, 20),
-        minute = sp.getInt(K_REMIND_MINUTE, 0),
-        days = sp.getStringSet(K_REMIND_DAYS, emptySet())
-            .orEmpty()
-            .mapNotNull { name -> DayOfWeek.entries.firstOrNull { it.name == name } }
-            .toSet(),
+        reminders = ReminderCodec.decode(sp.getString(K_REMIND_LIST, "").orEmpty()),
     )
 
-    fun updateReminder(block: (ReminderSchedule) -> ReminderSchedule) {
-        val next = block(_reminder.value)
+    fun updateReminders(block: (ReminderSettings) -> ReminderSettings) {
+        val next = block(_reminders.value)
         sp.edit()
             .putBoolean(K_REMIND_ON, next.enabled)
-            .putInt(K_REMIND_HOUR, next.hour)
-            .putInt(K_REMIND_MINUTE, next.minute)
-            .putStringSet(K_REMIND_DAYS, next.days.map { it.name }.toSet())
+            .putString(K_REMIND_LIST, ReminderCodec.encode(next.reminders))
             .apply()
-        _reminder.value = next
+        _reminders.value = next
     }
 
     val current: Settings get() = _state.value
@@ -105,8 +99,6 @@ class Prefs(context: Context) {
         const val K_PERIOD_VIEW = "dashboard_period"
         const val K_GUIDE_SEEN = "guide_seen"
         const val K_REMIND_ON = "reminder_enabled"
-        const val K_REMIND_HOUR = "reminder_hour"
-        const val K_REMIND_MINUTE = "reminder_minute"
-        const val K_REMIND_DAYS = "reminder_days"
+        const val K_REMIND_LIST = "reminders"
     }
 }

@@ -244,8 +244,12 @@ private val GUIDE: List<GuideSection> = listOf(
         "Reminders",
         listOf(
             para(
-                "Off until you turn them on in Settings, and silent until you have also " +
-                    "picked at least one day. Nothing is scheduled before that."
+                "Off until you turn them on in Settings. Nothing is scheduled before that."
+            ),
+            para(
+                "Then add as many as you want. Breakfast, lunch, dinner and bedtime are " +
+                    "one tap each, or name your own, and each one gets its own time and " +
+                    "its own days. One with no days ticked never fires."
             ),
             para(
                 "The notification asks whether there is anything to write down. It does " +

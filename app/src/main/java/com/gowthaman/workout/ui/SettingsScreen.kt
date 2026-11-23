@@ -29,6 +29,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -40,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import com.gowthaman.workout.logic.ReminderSchedule
+import com.gowthaman.workout.logic.Reminder
+import com.gowthaman.workout.logic.ReminderSettings
+import com.gowthaman.workout.logic.Reminders
 import com.gowthaman.workout.notify.ReminderAlarm
 import java.time.DayOfWeek
 import java.time.format.TextStyle
@@ -58,7 +62,7 @@ import com.gowthaman.workout.data.fmt
 @Composable
 fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val reminder by vm.reminder.collectAsStateWithLifecycle()
+    val reminders by vm.reminders.collectAsStateWithLifecycle()
     val sets by vm.strength.collectAsStateWithLifecycle()
     val cardio by vm.cardio.collectAsStateWithLifecycle()
 
@@ -225,10 +229,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
             )
         }
 
-        ReminderCard(
-            schedule = reminder,
-            onChange = vm::updateReminder,
-        )
+        ReminderCard(vm = vm, settings = reminders)
 
         SectionCard(title = "about") {
             Text(
@@ -350,19 +351,19 @@ private fun NumberSetting(
 }
 
 /**
- * The reminder settings: off until someone switches it on, and silent until they have
- * also picked at least one day.
+ * Reminders: one switch over a list.
  *
- * Switching on asks for the notification permission first, and stays off if it is
- * refused. Showing a switch as "on" when the platform will drop every notification would
- * be a lie the app tells once and the user discovers a week later.
+ * The switch is the thing that is off by default and the thing that asks for the
+ * notification permission. The list under it is empty until someone adds to it, and the
+ * meal names are offered as one-tap suggestions because "breakfast, lunch, dinner" is the
+ * reason anyone wants more than one of these.
+ *
+ * The switch stays off if the permission is refused. Showing it as on while the platform
+ * drops every notification would be a lie the app tells once and the user finds out about
+ * a week later.
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ReminderCard(
-    schedule: ReminderSchedule,
-    onChange: ((ReminderSchedule) -> ReminderSchedule) -> Unit,
-) {
+private fun ReminderCard(vm: AppViewModel, settings: ReminderSettings) {
     val context = LocalContext.current
     var deniedNotice by remember { mutableStateOf(false) }
 
@@ -370,7 +371,7 @@ private fun ReminderCard(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         deniedNotice = !granted
-        if (granted) onChange { it.copy(enabled = true) }
+        if (granted) vm.updateReminders { it.copy(enabled = true) }
     }
 
     SectionCard(title = "reminders") {
@@ -378,23 +379,28 @@ private fun ReminderCard(
             Column(Modifier.weight(1f)) {
                 Text("Remind me to log", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    if (schedule.isActive) "At ${schedule.timeLabel} on ${daysLabel(schedule.days)}"
-                    else if (schedule.enabled) "On, but no days chosen — nothing will fire"
-                    else "Off. Nothing is scheduled.",
+                    when {
+                        !settings.enabled -> "Off. Nothing is scheduled."
+                        settings.active.isEmpty() && settings.hasAny ->
+                            "On, but no days chosen — nothing will fire"
+                        settings.active.isEmpty() -> "On. Add a reminder below."
+                        else -> "${settings.active.size} scheduled"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Switch(
-                checked = schedule.enabled,
+                checked = settings.enabled,
                 onCheckedChange = { wanted ->
                     deniedNotice = false
                     when {
-                        !wanted -> onChange { it.copy(enabled = false) }
-                        ReminderAlarm.canPost(context) -> onChange { it.copy(enabled = true) }
+                        !wanted -> vm.updateReminders { it.copy(enabled = false) }
+                        ReminderAlarm.canPost(context) ->
+                            vm.updateReminders { it.copy(enabled = true) }
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
                             askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        else -> onChange { it.copy(enabled = true) }
+                        else -> vm.updateReminders { it.copy(enabled = true) }
                     }
                 },
             )
@@ -403,86 +409,133 @@ private fun ReminderCard(
         if (deniedNotice) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Android refused the notification permission, so the reminder stays off. " +
-                    "You can grant it in the system app settings and switch this on again.",
+                "Android refused the notification permission, so reminders stay off. You " +
+                    "can grant it in the system app settings and switch this on again.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        if (schedule.enabled) {
-            Spacer(Modifier.height(14.dp))
-            Text(
-                "AT",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(6.dp))
-            FilledTonalButton(onClick = {
-                TimePickerDialog(
-                    context,
-                    { _, hour, minute -> onChange { it.copy(hour = hour, minute = minute) } },
-                    schedule.hour,
-                    schedule.minute,
-                    true,
-                ).show()
-            }) { Text(schedule.timeLabel) }
+        if (!settings.enabled) return@SectionCard
 
-            Spacer(Modifier.height(14.dp))
-            Text(
-                "ON",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        settings.reminders.forEach { reminder ->
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(12.dp))
+            ReminderRow(
+                reminder = reminder,
+                onEdit = { block -> vm.editReminder(reminder.id, block) },
+                onRemove = { vm.removeReminder(reminder.id) },
             )
-            Spacer(Modifier.height(6.dp))
-            ChipFlow {
-                DayOfWeek.entries.forEach { day ->
-                    FilterChip(
-                        selected = day in schedule.days,
-                        onClick = {
-                            onChange {
-                                it.copy(
-                                    days = if (day in it.days) it.days - day else it.days + day
-                                )
-                            }
-                        },
-                        label = {
-                            Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
-                        },
-                    )
-                }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            "ADD",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        ChipFlow {
+            Reminders.SUGGESTIONS.forEach { (label, time) ->
+                val (hour, minute) = time
+                val already = settings.reminders.any { it.label.equals(label, ignoreCase = true) }
+                FilledTonalButton(
+                    onClick = { vm.addReminder(label, hour, minute) },
+                    enabled = !already,
+                ) { Text(label, maxLines = 1) }
             }
-
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "One notification, asking whether there is anything to write down. It does " +
-                    "not know or care whether you logged anything, and it will never say " +
-                    "you missed a day.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Android decides exactly when to deliver it, so it can arrive a little " +
-                    "after the time you pick. Asking for it to the minute would mean " +
-                    "asking for the alarm-clock permission, which a nudge does not need.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            FilledTonalButton(onClick = { vm.addReminder("", 20, 0) }) {
+                Text("Something else", maxLines = 1)
+            }
         }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Each one asks whether there is anything to write down. None of them check " +
+                "whether you logged anything, and none will ever say you missed a day.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Android decides exactly when to deliver them, so one can arrive a little " +
+                "after the time you pick. Asking for it to the minute would mean asking " +
+                "for the alarm-clock permission, which a nudge does not need.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
-/** "every day", "weekdays", or the short names. */
-private fun daysLabel(days: Set<DayOfWeek>): String {
-    val all = DayOfWeek.entries.toSet()
-    val weekdays = all - setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
-    return when (days) {
-        all -> "every day"
-        weekdays -> "weekdays"
-        setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) -> "weekends"
-        else -> DayOfWeek.entries.filter { it in days }
-            .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
+/** One reminder: its name, its time, its days, and a way to be rid of it. */
+@Composable
+private fun ReminderRow(
+    reminder: Reminder,
+    onEdit: ((Reminder) -> Reminder) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val context = LocalContext.current
+    var label by remember(reminder.id, reminder.label) { mutableStateOf(reminder.label) }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = { label = it.take(24) },
+            label = { Text("Name") },
+            placeholder = { Text("Breakfast") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onEdit { it.copy(label = label) } }),
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { state ->
+                    if (!state.isFocused && label != reminder.label) {
+                        onEdit { it.copy(label = label) }
+                    }
+                },
+        )
+        Spacer(Modifier.width(4.dp))
+        FilledTonalButton(onClick = {
+            TimePickerDialog(
+                context,
+                { _, hour, minute -> onEdit { it.copy(hour = hour, minute = minute) } },
+                reminder.hour,
+                reminder.minute,
+                true,
+            ).show()
+        }) { Text(reminder.timeLabel) }
+        SmallIconButton(Icons.Filled.Clear, "Remove ${reminder.title}", onClick = onRemove)
+    }
+
+    Spacer(Modifier.height(8.dp))
+    ChipFlow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        DayOfWeek.entries.forEach { day ->
+            FilterChip(
+                selected = day in reminder.days,
+                onClick = {
+                    onEdit {
+                        it.copy(days = if (day in it.days) it.days - day else it.days + day)
+                    }
+                },
+                // SHORT, not NARROW: narrow gives "M T W T F S S", where Tuesday and
+                // Thursday are both T and the weekend is two esses. Two rows of readable
+                // chips beats one row of guesswork.
+                label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) },
+            )
+        }
+    }
+
+    if (!reminder.isActive) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "No days chosen, so this one never fires.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
