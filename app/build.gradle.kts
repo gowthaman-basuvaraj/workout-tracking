@@ -62,7 +62,10 @@ android {
         // Deliberately not the namespace -- that stays com.gowthaman.workout so no
         // source file or import has to move.
         applicationId = "life.uncomplicated"
-        minSdk = 26
+        // 28, not 26: the platform's own BiometricPrompt starts here. Reaching Android 8
+        // would mean androidx.biometric, which measured at +338 KB and a fragment
+        // dependency -- a poor trade for a sliver of devices in an app this small.
+        minSdk = 28
         targetSdk = 36
         versionCode = gitVersionCode
         versionName = gitVersionName

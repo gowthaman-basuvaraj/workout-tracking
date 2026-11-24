@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.logic.Reminders
@@ -63,6 +64,7 @@ import com.gowthaman.workout.data.fmt
 fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
+    val lockEnabled by vm.lockEnabled.collectAsStateWithLifecycle()
     val sets by vm.strength.collectAsStateWithLifecycle()
     val cardio by vm.cardio.collectAsStateWithLifecycle()
 
@@ -230,6 +232,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
         }
 
         ReminderCard(vm = vm, settings = reminders)
+
+        LockCard(enabled = lockEnabled, onChange = vm::setLockEnabled)
 
         SectionCard(title = "about") {
             Text(
@@ -533,6 +537,71 @@ private fun ReminderRow(
         Spacer(Modifier.height(6.dp))
         Text(
             "No days chosen, so this one never fires.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The optional lock.
+ *
+ * The caveat is not small print. The log is plain CSV in a folder the user chose, usually
+ * synced to a laptop — anyone holding the unlocked phone can read it from Files without
+ * going near this app. Saying "locked" without saying that would be the app claiming a
+ * protection it does not provide, which is worse than having no lock at all.
+ */
+@Composable
+private fun LockCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    // Re-checked on every composition rather than remembered: someone can leave, enrol a
+    // fingerprint in the phone's settings, and come straight back.
+    val unavailable = Biometrics.unavailableReason(context)
+
+    SectionCard(title = "lock") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Unlock with biometrics", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    when {
+                        unavailable != null -> "Unavailable"
+                        enabled -> "Asked for after a minute away, and on a cold start"
+                        else -> "Off. The app opens straight away."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = enabled,
+                enabled = unavailable == null,
+                onCheckedChange = onChange,
+            )
+        }
+
+        if (unavailable != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                unavailable,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "This locks the app, not your files. Your log is plain CSV in the folder you " +
+                "picked, and anyone with this phone unlocked can read it from a file " +
+                "manager, or from your laptop if the folder is synced. Encrypting it " +
+                "would mean you could no longer open it anywhere else, which is the whole " +
+                "point of keeping it this way.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Your screen lock works as well as your fingerprint, so a sensor that stops " +
+                "recognising you cannot shut you out.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

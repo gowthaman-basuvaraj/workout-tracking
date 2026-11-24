@@ -264,6 +264,25 @@ private val GUIDE: List<GuideSection> = listOf(
         ),
     ),
     GuideSection(
+        "Locking the app",
+        listOf(
+            para(
+                "Optional, and off unless you turn it on in Settings. When it is on, the " +
+                    "app asks for your fingerprint — or your screen lock, which always " +
+                    "works too — when you open it, and again after it has been in the " +
+                    "background for a minute. Flicking to another app and straight back " +
+                    "does not ask."
+            ),
+            para(
+                "This locks the app, not your files. Your log is plain CSV in the folder " +
+                    "you picked, and anyone with this phone unlocked can read it from a " +
+                    "file manager, or from your laptop if that folder is synced. " +
+                    "Encrypting it would mean you could no longer open it anywhere else, " +
+                    "which is the whole point of keeping it this way."
+            ),
+        ),
+    ),
+    GuideSection(
         "From a laptop",
         listOf(
             para(

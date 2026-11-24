@@ -35,6 +35,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Single activity, so its stop and start are the app leaving and returning. onStop
+    // rather than onPause: a dialog or the permission sheet pauses without leaving, and
+    // locking behind those would be absurd.
+    override fun onStart() {
+        super.onStart()
+        vm.onForegrounded()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        vm.onBackgrounded()
+    }
+
     override fun onResume() {
         super.onResume()
         // Re-read the folder so edits made on a laptop, or pulled in by a sync client while

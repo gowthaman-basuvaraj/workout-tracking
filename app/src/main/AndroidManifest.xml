@@ -8,6 +8,9 @@
       does not need to be an alarm clock.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Normal permission, granted at install. The optional lock borrows the device's own
+         unlock; nothing is enrolled or stored by this app. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application

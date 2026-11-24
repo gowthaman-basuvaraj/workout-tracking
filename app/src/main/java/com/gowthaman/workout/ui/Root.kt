@@ -1,5 +1,8 @@
 package com.gowthaman.workout.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,7 +30,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +47,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.data.Kind
+import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.data.Repo
 import java.time.LocalDate
 
@@ -64,6 +71,14 @@ object Routes {
 @Composable
 fun Root(vm: AppViewModel) {
     val status by vm.status.collectAsStateWithLifecycle()
+    val locked by vm.locked.collectAsStateWithLifecycle()
+
+    // Before everything, including the folder picker: whatever is on the other side of
+    // this is the thing the lock exists to keep off a borrowed phone.
+    if (locked) {
+        LockGate(onUnlocked = vm::unlock)
+        return
+    }
 
     if (status == Repo.Status.NO_FOLDER) {
         FolderGate(onPick = vm::useFolder)
@@ -225,6 +240,70 @@ private fun LoadingGate() {
             }
         }
     }
+}
+
+/**
+ * The screen behind the fingerprint.
+ *
+ * It prompts by itself when it appears, because an extra tap before the prompt is a tap
+ * for nothing. The button is for afterwards: cancelling the system prompt has to leave
+ * something to press, or the app is a dead end until it is force-stopped.
+ */
+@Composable
+private fun LockGate(onUnlocked: () -> Unit) {
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val ask: () -> Unit = {
+        val host = activity
+        if (host == null) {
+            message = "Could not show the unlock prompt."
+        } else {
+            message = null
+            Biometrics.prompt(
+                activity = host,
+                onSuccess = onUnlocked,
+                onFailure = { reason -> message = reason },
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) { ask() }
+
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Column(
+                Modifier.padding(32.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            ) {
+                Text("Uncomplicated", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "Locked",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                message?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+                Button(onClick = ask, modifier = Modifier.padding(top = 24.dp)) { Text("Unlock") }
+            }
+        }
+    }
+}
+
+/** Compose hands out a context; the biometric prompt wants the activity behind it. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

@@ -145,6 +145,21 @@ Android may deliver it up to an hour late, which the settings screen says plainl
 than implying a precision it has not got. A receiver on `BOOT_COMPLETED` and
 `MY_PACKAGE_REPLACED` re-arms it, since both drop pending alarms.
 
+**Lock — optional, off by default.** Switch it on in Settings and the app asks for a
+fingerprint, or the screen lock, on opening and after a minute in the background. A quick
+trip to another app does not ask; the grace period is pure logic in `:core` with tests,
+because getting it wrong makes the lock unusable rather than merely annoying.
+
+It uses the platform's own `BiometricPrompt`, not `androidx.biometric` — which measured at
++338 KB and a fragment dependency. `minSdk` is 28 instead, which is where the framework
+prompt starts. Device credential is always allowed alongside the fingerprint: there is no
+recovery path here, and a sensor that stops recognising you must not shut you out.
+
+It locks the app, not the files. The log is plain CSV in a folder you chose, so anyone
+with the phone unlocked can read it from a file manager, or from your laptop if the folder
+is synced. Encrypting it would break the thing the app exists for, and the settings screen
+says so rather than implying a protection it does not provide.
+
 **How it works.** A short guide behind the `?` on the day screen, and in Settings. First
 run offers it once and never mentions it again whichever way you answer. It is a list of
 sections rendered by about forty lines of Compose rather than HTML in a WebView: that way

@@ -20,6 +20,7 @@ import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
+import com.gowthaman.workout.logic.LockPolicy
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.notify.ReminderAlarm
@@ -68,6 +69,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val guideSeen: StateFlow<Boolean> = prefs.guideSeen
 
     fun markGuideSeen() = prefs.markGuideSeen()
+
+    // ------------------------------------------------------------------- lock
+
+    val lockEnabled: StateFlow<Boolean> = prefs.lockEnabled
+
+    private val _locked = MutableStateFlow(prefs.lockEnabled.value)
+    val locked: StateFlow<Boolean> = _locked
+
+    /** Null until the app has been to the background in this process. */
+    private var leftAt: Long? = null
+
+    fun setLockEnabled(enabled: Boolean) {
+        prefs.setLockEnabled(enabled)
+        // Switching it off has to unlock as well, or Settings would be behind a lock that
+        // no longer exists. Switching it on does not lock immediately: the person doing
+        // it is already looking at the screen.
+        if (!enabled) _locked.value = false
+    }
+
+    fun onBackgrounded() {
+        leftAt = System.currentTimeMillis()
+    }
+
+    fun onForegrounded() {
+        if (LockPolicy.shouldLock(prefs.lockEnabled.value, leftAt, System.currentTimeMillis())) {
+            _locked.value = true
+        }
+    }
+
+    fun unlock() {
+        _locked.value = false
+        // So the next return to the foreground is measured from now rather than from the
+        // backgrounding that caused this lock.
+        leftAt = System.currentTimeMillis()
+    }
 
     val reminders: StateFlow<ReminderSettings> = prefs.reminders
 

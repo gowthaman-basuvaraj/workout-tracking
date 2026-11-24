@@ -37,6 +37,18 @@ class Prefs(context: Context) {
      * window. What time a particular phone buzzes is not something the CLI has any use
      * for, and one folder can be synced to more than one device.
      */
+    /**
+     * Whether the app asks for a fingerprint. Phone-local, like the reminders and for the
+     * same reason: it is about this device, not about the data in the folder.
+     */
+    private val _lockEnabled = MutableStateFlow(sp.getBoolean(K_LOCK, false))
+    val lockEnabled: StateFlow<Boolean> = _lockEnabled
+
+    fun setLockEnabled(enabled: Boolean) {
+        sp.edit().putBoolean(K_LOCK, enabled).apply()
+        _lockEnabled.value = enabled
+    }
+
     private val _reminders = MutableStateFlow(readReminders())
     val reminders: StateFlow<ReminderSettings> = _reminders
 
@@ -100,5 +112,6 @@ class Prefs(context: Context) {
         const val K_GUIDE_SEEN = "guide_seen"
         const val K_REMIND_ON = "reminder_enabled"
         const val K_REMIND_LIST = "reminders"
+        const val K_LOCK = "biometric_lock"
     }
 }
