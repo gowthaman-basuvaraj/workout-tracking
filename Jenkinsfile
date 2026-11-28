@@ -102,8 +102,26 @@ pipeline {
                     chmod +x gradlew
                     # :core carries the logic the app and the CLI share, so its tests are
                     # the ones that matter most; :cli:jar is the desktop logger.
+                    #
+                    # :core is Kotlin Multiplatform, so its tests are :core:jvmTest -- there
+                    # is no :core:test task to call.
+                    #
+                    # compileKotlinLinuxX64 is the canary that keeps :core portable. The
+                    # rule is that shared code may not touch java.*, and the JVM target
+                    # cannot enforce it: java.* is on its classpath, so a stray import
+                    # compiles happily and the rule survives only as long as everyone
+                    # remembers it. Native has no JVM underneath, so the same import fails
+                    # to compile, with a line number. The catch is that it only guards
+                    # anything if something builds it, and nothing else here does -- the
+                    # JVM target is all :app and :cli need. Hence the explicit task.
+                    #
+                    # The target name follows the build host, which this pipeline assumes
+                    # is linux/x64 (see the header). The first build on a fresh agent
+                    # downloads the Kotlin/Native toolchain into $HOME/.konan; later ones
+                    # reuse it.
                     ./gradlew --no-daemon --stacktrace clean \
-                        :core:test :cli:test :app:testDebugUnitTest \
+                        :core:jvmTest :cli:test :app:testDebugUnitTest \
+                        :core:compileKotlinLinuxX64 \
                         assembleDebug :cli:jar
                 '''
             }
