@@ -30,7 +30,6 @@ class Repo(context: Context, private val prefs: Prefs) {
     enum class Status { NO_FOLDER, LOADING, READY, ERROR }
 
     private val appContext = context.applicationContext
-    private val store = CsvStore(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val writeLock = Mutex()
 
@@ -95,6 +94,15 @@ class Repo(context: Context, private val prefs: Prefs) {
 
     private val folderUri: Uri? get() = prefs.current.folderUri?.let(Uri::parse)
 
+    /**
+     * The archive, pointed at the folder currently chosen.
+     *
+     * Rebuilt per call rather than held, because the folder can change underneath it
+     * (Settings can re-pick or forget one) and a [SafStore] is a URI and a context --
+     * cheaper to construct than to invalidate correctly.
+     */
+    private val archive: CsvStore? get() = folderUri?.let { CsvStore(SafStore(appContext, it)) }
+
     init {
         if (folderUri != null) reload() else _status.value = Status.NO_FOLDER
 
@@ -109,10 +117,21 @@ class Repo(context: Context, private val prefs: Prefs) {
         }
     }
 
+    /**
+     * The README and analysis script shipped inside the APK.
+     *
+     * :core decides when the folder's copies are stale; where the fresh copy comes from
+     * is per-platform, which is why it arrives as a function rather than a path.
+     */
+    private fun bundledDoc(name: String): String =
+        runCatching {
+            appContext.assets.open(name).use { it.readBytes().toString(Charsets.UTF_8) }
+        }.getOrDefault("")
+
     private suspend fun publishSettings(settings: Settings) {
-        val uri = folderUri ?: return
+        val csv = archive ?: return
         writeLock.withLock {
-            runCatching { withContext(Dispatchers.IO) { store.saveSettings(uri, settings) } }
+            runCatching { withContext(Dispatchers.IO) { csv.saveSettings(settings) } }
         }
     }
 
@@ -152,8 +171,8 @@ class Repo(context: Context, private val prefs: Prefs) {
     }
 
     fun reload() {
-        val uri = folderUri
-        if (uri == null) {
+        val csv = archive
+        if (csv == null) {
             _status.value = Status.NO_FOLDER
             return
         }
@@ -168,10 +187,10 @@ class Repo(context: Context, private val prefs: Prefs) {
                 try {
                     val snapshot = withContext(Dispatchers.IO) {
                         if (!docsEnsured) {
-                            store.ensureDocs(uri)
+                            csv.ensureDocs(::bundledDoc)
                             docsEnsured = true
                         }
-                        store.load(uri)
+                        csv.load()
                     }
                     _strength.value = snapshot.strength
                     _cardio.value = snapshot.cardio
@@ -186,7 +205,7 @@ class Repo(context: Context, private val prefs: Prefs) {
                     refreshStressCatalog()
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            store.saveSettings(uri, prefs.current.copy(folderUri = null))
+                            csv.saveSettings(prefs.current.copy(folderUri = null))
                         }
                     }
                     _error.value = null
@@ -580,19 +599,19 @@ class Repo(context: Context, private val prefs: Prefs) {
                 refreshCatalog()
                 refreshFoodCatalog()
                 refreshStressCatalog()
-                val uri = folderUri ?: return@withLock
+                val csv = archive ?: return@withLock
                 try {
                     withContext(Dispatchers.IO) {
                         touched.forEach { month ->
-                            store.saveStrengthMonth(uri, month, _strength.value.filter { YearMonth.from(it.date) == month })
-                            store.saveCardioMonth(uri, month, _cardio.value.filter { YearMonth.from(it.date) == month })
-                            store.saveFoodMonth(uri, month, _food.value.filter { YearMonth.from(it.date) == month })
-                            store.saveSleepMonth(uri, month, _sleep.value.filter { YearMonth.from(it.date) == month })
-                            store.saveStressMonth(uri, month, _stress.value.filter { YearMonth.from(it.date) == month })
+                            csv.saveStrengthMonth(month, _strength.value.filter { YearMonth.from(it.date) == month })
+                            csv.saveCardioMonth(month, _cardio.value.filter { YearMonth.from(it.date) == month })
+                            csv.saveFoodMonth(month, _food.value.filter { YearMonth.from(it.date) == month })
+                            csv.saveSleepMonth(month, _sleep.value.filter { YearMonth.from(it.date) == month })
+                            csv.saveStressMonth(month, _stress.value.filter { YearMonth.from(it.date) == month })
                         }
-                        store.saveCatalog(uri, _catalog.value)
-                        store.saveFoodCatalog(uri, _foodCatalog.value)
-                        store.saveStressCatalog(uri, _stressCatalog.value)
+                        csv.saveCatalog(_catalog.value)
+                        csv.saveFoodCatalog(_foodCatalog.value)
+                        csv.saveStressCatalog(_stressCatalog.value)
                     }
                     _error.value = null
                 } catch (t: Throwable) {
