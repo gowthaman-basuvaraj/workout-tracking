@@ -1,6 +1,5 @@
 package com.gowthaman.workout.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +36,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -263,14 +261,6 @@ fun Pill(
  * a snackbar lives inside the screen that is going away -- which is precisely the moment
  * the message is worth reading.
  */
-@Composable
-fun rememberToaster(): (String) -> Unit {
-    val context = LocalContext.current
-    return remember(context) {
-        { message: String -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
-    }
-}
-
 @Composable
 fun NumberText(text: String, modifier: Modifier = Modifier, color: Color? = null) {
     Text(

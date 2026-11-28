@@ -1,11 +1,5 @@
 package com.gowthaman.workout.ui
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -41,14 +34,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.NavHost
+import androidx.savedstate.read
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.gowthaman.workout.AppModel
-import com.gowthaman.workout.useFolder
 import com.gowthaman.workout.data.Kind
-import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.data.Repo
 import kotlinx.datetime.LocalDate
 
@@ -64,9 +57,9 @@ object Routes {
     const val GUIDE = "guide"
 
     fun log(date: LocalDate, kind: Kind, exercise: String? = null): String =
-        "$LOG?date=$date&kind=${kind.name}&exercise=${Uri.encode(exercise.orEmpty())}"
+        "$LOG?date=$date&kind=${kind.name}&exercise=${UrlCode.encode(exercise.orEmpty())}"
 
-    fun exercise(name: String): String = "exercise/${Uri.encode(name)}"
+    fun exercise(name: String): String = "exercise/${UrlCode.encode(name)}"
 }
 
 @Composable
@@ -85,8 +78,7 @@ fun Root(vm: AppModel) {
     }
 
     if (status == Repo.Status.NO_FOLDER) {
-        val context = LocalContext.current
-        FolderGate(onPick = { uri -> vm.useFolder(context, uri) })
+        FolderGate(onPicked = vm::useFolder)
         return
     }
 
@@ -178,7 +170,7 @@ fun Root(vm: AppModel) {
             }
 
             composable("exercise/{name}") { entry ->
-                val name = Uri.decode(entry.arguments?.getString("name").orEmpty())
+                val name = UrlCode.decode(entry.arg("name").orEmpty())
                 ExerciseDetailScreen(
                     vm = vm,
                     exercise = name,
@@ -197,12 +189,11 @@ fun Root(vm: AppModel) {
             }
 
             composable("${Routes.LOG}?date={date}&kind={kind}&exercise={exercise}") { entry ->
-                val args = entry.arguments
-                val date = runCatching { LocalDate.parse(args?.getString("date").orEmpty()) }
+                val date = runCatching { LocalDate.parse(entry.arg("date").orEmpty()) }
                     .getOrDefault(vm.selectedDate.value)
-                val kind = runCatching { Kind.valueOf(args?.getString("kind") ?: Kind.STRENGTH.name) }
+                val kind = runCatching { Kind.valueOf(entry.arg("kind") ?: Kind.STRENGTH.name) }
                     .getOrDefault(Kind.STRENGTH)
-                val exercise = Uri.decode(args?.getString("exercise").orEmpty())
+                val exercise = UrlCode.decode(entry.arg("exercise").orEmpty())
                 LogScreen(
                     vm = vm,
                     date = date,
@@ -256,30 +247,23 @@ private fun LoadingGate() {
  */
 @Composable
 private fun LockGate(onUnlocked: () -> Unit, onUnlockable: () -> Unit) {
-    val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() }
+    val authenticator = rememberAuthenticator()
     var message by remember { mutableStateOf<String?>(null) }
 
     // The lock borrows the device's own unlock, so removing the screen lock leaves it
     // with nothing to ask for -- and anyone who did that would be shut out of their own
     // log for good, by a lock that was protecting nothing in the first place. It gives
     // way instead, and switches itself off so Settings tells the truth afterwards.
-    val unavailable = Biometrics.unavailableReason(context)
+    val unavailable = authenticator.unavailableReason
     LaunchedEffect(unavailable) { if (unavailable != null) onUnlockable() }
     if (unavailable != null) return
 
     val ask: () -> Unit = {
-        val host = activity
-        if (host == null) {
-            message = "Could not show the unlock prompt."
-        } else {
-            message = null
-            Biometrics.prompt(
-                activity = host,
-                onSuccess = onUnlocked,
-                onFailure = { reason -> message = reason },
-            )
-        }
+        message = null
+        authenticator.authenticate(
+            onSuccess = onUnlocked,
+            onFailure = { reason -> message = reason },
+        )
     }
 
     LaunchedEffect(Unit) { ask() }
@@ -312,18 +296,9 @@ private fun LockGate(onUnlocked: () -> Unit, onUnlockable: () -> Unit) {
     }
 }
 
-/** Compose hands out a context; the biometric prompt wants the activity behind it. */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
 @Composable
-private fun FolderGate(onPick: (Uri) -> Unit) {
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) onPick(uri)
-    }
+private fun FolderGate(onPicked: (String) -> Unit) {
+    val pick = rememberFolderPicker(onPicked)
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -358,7 +333,7 @@ private fun FolderGate(onPick: (Uri) -> Unit) {
                     modifier = Modifier.padding(top = 16.dp),
                 )
                 Button(
-                    onClick = { picker.launch(null) },
+                    onClick = pick,
                     modifier = Modifier.padding(top = 28.dp),
                 ) {
                     Text("Choose data folder")
@@ -367,3 +342,12 @@ private fun FolderGate(onPick: (Uri) -> Unit) {
         }
     }
 }
+
+/**
+ * One navigation argument, as text.
+ *
+ * Multiplatform navigation hands back a SavedState rather than an Android Bundle, so
+ * there is no getString to call. This is the whole of the difference.
+ */
+private fun NavBackStackEntry.arg(key: String): String? =
+    arguments?.read { if (contains(key)) getStringOrNull(key) else null }

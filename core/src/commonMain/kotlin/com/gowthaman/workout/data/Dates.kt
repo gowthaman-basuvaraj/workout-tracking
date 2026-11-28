@@ -1,6 +1,8 @@
 package com.gowthaman.workout.data
 
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -77,6 +79,15 @@ internal val MONTH_NAMES = listOf(
 )
 
 internal val WEEKDAY_NAMES = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+/**
+ * "Mon" — for the day-of-week chips.
+ *
+ * Replaces `DayOfWeek.getDisplayName(TextStyle.SHORT, Locale)`, which is java.time and so
+ * exists on exactly one of the platforms this now builds for. SHORT rather than NARROW
+ * for the same reason as before: NARROW gives "M T W T F S S", and two of those are "T".
+ */
+fun DayOfWeek.shortLabel(): String = WEEKDAY_NAMES[isoDayNumber - 1]
 
 /**
  * `"%.Nf"` — round to a fixed number of decimals and keep the trailing zeros.

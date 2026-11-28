@@ -28,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,7 +62,7 @@ fun DashboardScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val unit = settings.weightUnit
     val period = data.period
-    val context = LocalContext.current
+    val share = rememberSharer()
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -81,7 +80,7 @@ fun DashboardScreen(
                 )
                 if (data.hasData) {
                     SmallIconButton(Icons.Filled.Share, "Share this summary") {
-                        shareSummary(context, Summary.text(data, settings))
+                        share(Summary.text(data, settings))
                     }
                 }
             }
@@ -334,21 +333,6 @@ fun DashboardScreen(
             TotalsFooter(data = data)
         }
     }
-}
-
-/**
- * Hands the summary to the system share sheet as plain text.
- *
- * Text rather than an image on purpose: it pastes into a message, an email or your own
- * notes, and it stays readable by whoever receives it. Nothing is sent anywhere until the
- * share sheet is used, and the destination is always the reader's choice.
- */
-private fun shareSummary(context: android.content.Context, text: String) {
-    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(android.content.Intent.createChooser(intent, "Share summary"))
 }
 
 @Composable

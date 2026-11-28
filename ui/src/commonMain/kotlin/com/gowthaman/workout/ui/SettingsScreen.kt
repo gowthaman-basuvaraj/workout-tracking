@@ -1,8 +1,5 @@
 package com.gowthaman.workout.ui
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,9 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import android.Manifest
-import android.app.TimePickerDialog
-import android.os.Build
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -33,7 +27,10 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,40 +39,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.logic.Reminders
-import com.gowthaman.workout.notify.ReminderAlarm
 import kotlinx.datetime.DayOfWeek
-import java.time.format.TextStyle
-import java.util.Locale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppModel
-import com.gowthaman.workout.useFolder
 import com.gowthaman.workout.data.Units
+import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.fmt
 
 @Composable
 fun SettingsScreen(vm: AppModel, onOpenGuide: () -> Unit) {
-    // For the persistable grant on a newly picked folder; see AppModel.useFolder.
-    val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val lockEnabled by vm.lockEnabled.collectAsStateWithLifecycle()
     val sets by vm.strength.collectAsStateWithLifecycle()
     val cardio by vm.cardio.collectAsStateWithLifecycle()
 
-    var confirmChangeFolder by remember { mutableStateOf<Uri?>(null) }
+    var confirmChangeFolder by remember { mutableStateOf<String?>(null) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) confirmChangeFolder = uri
-    }
+    val pickFolder = rememberFolderPicker { location -> confirmChangeFolder = location }
 
     Column(
         Modifier
@@ -103,7 +91,7 @@ fun SettingsScreen(vm: AppModel, onOpenGuide: () -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             ChipFlow {
-                FilledTonalButton(onClick = { picker.launch(null) }) {
+                FilledTonalButton(onClick = pickFolder) {
                     Text("Change folder", maxLines = 1)
                 }
                 OutlinedButton(onClick = vm::refresh) { Text("Reload", maxLines = 1) }
@@ -259,7 +247,7 @@ fun SettingsScreen(vm: AppModel, onOpenGuide: () -> Unit) {
             title = { Text("Use this folder?") },
             text = {
                 Text(
-                    "The app will read whatever log files are already in ${prettyFolder(uri.toString())} " +
+                    "The app will read whatever log files are already in ${prettyFolder(uri)} " +
                         "and write new ones there.\n\nNothing is copied out of your current folder, " +
                         "and nothing in it is deleted. If you are moving your data, copy the CSV " +
                         "files across yourself first."
@@ -267,7 +255,7 @@ fun SettingsScreen(vm: AppModel, onOpenGuide: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.useFolder(context, uri)
+                    vm.useFolder(uri)
                     confirmChangeFolder = null
                 }) { Text("Use folder") }
             },
@@ -371,12 +359,9 @@ private fun NumberSetting(
  */
 @Composable
 private fun ReminderCard(vm: AppModel, settings: ReminderSettings) {
-    val context = LocalContext.current
     var deniedNotice by remember { mutableStateOf(false) }
 
-    val askPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+    val permission = rememberNotificationPermission { granted ->
         deniedNotice = !granted
         if (granted) vm.updateReminders { it.copy(enabled = true) }
     }
@@ -403,11 +388,10 @@ private fun ReminderCard(vm: AppModel, settings: ReminderSettings) {
                     deniedNotice = false
                     when {
                         !wanted -> vm.updateReminders { it.copy(enabled = false) }
-                        ReminderAlarm.canPost(context) ->
-                            vm.updateReminders { it.copy(enabled = true) }
-                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
-                            askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        else -> vm.updateReminders { it.copy(enabled = true) }
+                        // False both when it is already granted and where there is
+                        // nothing to ask -- Android before 13 simply posts.
+                        !permission.needed -> vm.updateReminders { it.copy(enabled = true) }
+                        else -> permission.ask()
                     }
                 },
             )
@@ -479,14 +463,41 @@ private fun ReminderCard(vm: AppModel, settings: ReminderSettings) {
 }
 
 /** One reminder: its name, its time, its days, and a way to be rid of it. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReminderRow(
     reminder: Reminder,
     onEdit: ((Reminder) -> Reminder) -> Unit,
     onRemove: () -> Unit,
 ) {
-    val context = LocalContext.current
     var label by remember(reminder.id, reminder.label) { mutableStateOf(reminder.label) }
+    var picking by remember { mutableStateOf(false) }
+
+    if (picking) {
+        // Material's own clock face, which exists everywhere Compose does. The Android
+        // dialog it replaces did not.
+        val state = rememberTimePickerState(
+            initialHour = reminder.hour,
+            initialMinute = reminder.minute,
+            // 24-hour, as the field itself is rendered. is24Hour follows the device
+            // elsewhere, and a picker that disagreed with the label beside it would be
+            // its own small confusion.
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onEdit { it.copy(hour = state.hour, minute = state.minute) }
+                        picking = false
+                    }
+                ) { Text("Set") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            text = { TimePicker(state) },
+        )
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
@@ -507,13 +518,7 @@ private fun ReminderRow(
         )
         Spacer(Modifier.width(4.dp))
         FilledTonalButton(onClick = {
-            TimePickerDialog(
-                context,
-                { _, hour, minute -> onEdit { it.copy(hour = hour, minute = minute) } },
-                reminder.hour,
-                reminder.minute,
-                true,
-            ).show()
+            picking = true
         }) { Text(reminder.timeLabel) }
         SmallIconButton(Icons.Filled.Clear, "Remove ${reminder.title}", onClick = onRemove)
     }
@@ -531,7 +536,7 @@ private fun ReminderRow(
                 // SHORT, not NARROW: narrow gives "M T W T F S S", where Tuesday and
                 // Thursday are both T and the weekend is two esses. Two rows of readable
                 // chips beats one row of guesswork.
-                label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) },
+                label = { Text(day.shortLabel()) },
             )
         }
     }
@@ -556,10 +561,9 @@ private fun ReminderRow(
  */
 @Composable
 private fun LockCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
-    val context = LocalContext.current
     // Re-checked on every composition rather than remembered: someone can leave, enrol a
     // fingerprint in the phone's settings, and come straight back.
-    val unavailable = Biometrics.unavailableReason(context)
+    val unavailable = rememberAuthenticator().unavailableReason
 
     SectionCard(title = "lock") {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -613,7 +617,7 @@ private fun LockCard(enabled: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Turns a SAF tree uri into something a person can recognise. */
 private fun prettyFolder(uri: String): String {
-    val decoded = Uri.decode(uri)
+    val decoded = UrlCode.decode(uri)
     val tail = decoded.substringAfterLast("/tree/", missingDelimiterValue = decoded)
     return when {
         tail.startsWith("primary:") -> "Internal storage / " + tail.removePrefix("primary:")

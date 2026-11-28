@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.cardioOf
 import com.gowthaman.workout.data.CardioEntry
+import com.gowthaman.workout.data.nowMillis
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
@@ -771,7 +772,7 @@ private fun Stopwatch(onStop: (Int) -> Unit) {
 
     androidx.compose.runtime.LaunchedEffect(running, startedAt) {
         while (running) {
-            now = System.currentTimeMillis()
+            now = nowMillis()
             delay(250)
         }
     }
@@ -786,7 +787,7 @@ private fun Stopwatch(onStop: (Int) -> Unit) {
             )
             if (!running) {
                 FilledTonalButton(onClick = {
-                    startedAt = System.currentTimeMillis()
+                    startedAt = nowMillis()
                     now = startedAt
                     running = true
                 }) { Text(if (elapsed > 0) "Resume" else "Start") }

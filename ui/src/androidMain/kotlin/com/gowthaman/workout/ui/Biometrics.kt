@@ -1,4 +1,4 @@
-package com.gowthaman.workout.lock
+package com.gowthaman.workout.ui
 
 import android.app.Activity
 import android.app.KeyguardManager

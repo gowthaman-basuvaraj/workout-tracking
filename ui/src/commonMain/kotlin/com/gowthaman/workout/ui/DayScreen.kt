@@ -1,7 +1,19 @@
 package com.gowthaman.workout.ui
 
-import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,13 +50,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppModel
-import com.gowthaman.workout.R
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
@@ -262,6 +271,7 @@ fun DayScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateNavigator(
     date: LocalDate,
@@ -272,7 +282,41 @@ private fun DateNavigator(
     onRefresh: () -> Unit,
     onHelp: () -> Unit,
 ) {
-    val context = LocalContext.current
+    var picking by remember { mutableStateOf(false) }
+
+    if (picking) {
+        // Material's own date picker, which exists on every platform Compose does. The
+        // Android dialog this replaces did not, and was the last thing in this file that
+        // could only run on a phone.
+        //
+        // It speaks epoch millis and means them as UTC, so the conversion both ways is
+        // pinned to UTC. Using the device zone here would hand back the previous day for
+        // anyone west of Greenwich.
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.let { millis ->
+                            onPick(
+                                Instant.fromEpochMilliseconds(millis)
+                                    .toLocalDateTime(TimeZone.UTC).date
+                            )
+                        }
+                        picking = false
+                    }
+                ) { Text("Go") }
+            },
+            dismissButton = {
+                TextButton(onClick = { picking = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state)
+        }
+    }
 
     Row(
         Modifier
@@ -280,23 +324,13 @@ private fun DateNavigator(
             .padding(horizontal = 6.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SmallIconButton(painterResource(R.drawable.ic_help), "How it works", onClick = onHelp)
+        SmallIconButton(HelpIcon, "How it works", onClick = onHelp)
         SmallIconButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous day") { onShift(-1) }
 
         Column(
             Modifier
                 .weight(1f)
-                .clickable {
-                    DatePickerDialog(
-                        context,
-                        { _, year, month, dayOfMonth ->
-                            onPick(LocalDate(year, month + 1, dayOfMonth))
-                        },
-                        date.year,
-                        date.monthNumber - 1,
-                        date.dayOfMonth,
-                    ).show()
-                }
+                .clickable { picking = true }
                 .padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
