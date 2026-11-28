@@ -429,6 +429,10 @@ cli/      desktop
   Main.kt            commands, matching, help
 ```
 
+`docs/ios-port.md` is where the iOS work is written down: the eight seams, the
+ruling already made on each known issue, and the version pins that cannot move
+independently. Read it before starting that work, not during.
+
 Between `:core` and `:ui`, roughly 10,300 of the project's 12,000 lines are
 shared. What is left on Android is an activity, a ViewModel, two store adapters
 and the notification plumbing.
