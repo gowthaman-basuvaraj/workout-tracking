@@ -119,9 +119,17 @@ pipeline {
                     # is linux/x64 (see the header). The first build on a fresh agent
                     # downloads the Kotlin/Native toolchain into $HOME/.konan; later ones
                     # reuse it.
+                    #
+                    # :ui gets the same guard, through wasm rather than native -- Compose
+                    # Multiplatform has no desktop-native target, and wasm has the useful
+                    # property of refusing android.* as well as java.*. That second half
+                    # matters more for screens than for logic: :ui:assembleDebug compiles
+                    # a Context or a Toast in shared code without a word, because the
+                    # Android target has them. This task is the only thing that does not.
+                    # It compiles :core for wasm on the way, so both are covered.
                     ./gradlew --no-daemon --stacktrace clean \
                         :core:jvmTest :cli:test :app:testDebugUnitTest \
-                        :core:compileKotlinLinuxX64 \
+                        :core:compileKotlinLinuxX64 :ui:compileKotlinWasmJs \
                         assembleDebug :cli:jar
                 '''
             }

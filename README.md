@@ -363,7 +363,7 @@ download URL and `commandlinetools-linux-` to the matching archive.
 
 ## Layout
 
-Three Gradle modules. `:core` is Kotlin Multiplatform with no Android on the classpath at
+Four Gradle modules. `:core` is Kotlin Multiplatform with no Android on the classpath at
 all, which is what lets the phone and the laptop run the same code instead of two copies
 that drift apart. It builds for the JVM today; the sources are `commonMain`, so an iOS
 target is a line in `core/build.gradle.kts` rather than a rewrite.
@@ -405,19 +405,33 @@ core/     Kotlin Multiplatform (commonMain) — shared by :app and :cli
   AppModel.kt       the app minus the pixels: selected day, derived views, commands
   174 unit tests (jvmTest)
 
+ui/       Compose Multiplatform — the screens, built once
+  Root.kt           navigation, the folder gate, the lock screen
+  DayScreen.kt      LogScreen.kt  DashboardScreen.kt  ExercisesScreen.kt
+  ExerciseDetailScreen.kt  SettingsScreen.kt  GuideScreen.kt  Components.kt
+  Platform.kt       THE SEAMS: toast, share, folder picker, permission, biometrics
+  UrlCode.kt        percent-encoding for navigation arguments
+  Icons.kt          the help glyph, drawn in Kotlin
+  androidMain/      the five seams, in Android's terms
+  wasmJsMain/       the same five, empty — the canary has to link
+
 app/      Android — and only what is actually Android
-  data/SafStore.kt        the port, over the Storage Access Framework
+  data/SafStore.kt          the port, over the Storage Access Framework
   data/SharedPrefsStore.kt  the port, over SharedPreferences
-  notify/                 AlarmManager and the notification channel
-  lock/Biometrics.kt      BiometricPrompt
-  AppViewModel.kt         builds AppModel and lends it a lifecycle-scoped scope
-  ui/                     Compose screens: Day, Log, Library, detail, Dashboard, Settings
+  notify/                   AlarmManager and the notification channel
+  MainActivity.kt           sets content, holds the splash, forwards lifecycle
+  AppViewModel.kt           builds AppModel and lends it a lifecycle-scoped scope
+  454 lines, all of it genuinely Android
 
 cli/      desktop
   DirectoryStore.kt  the port, over java.io.File — 30 lines
   Folder.kt          catalogs and unit inference on top of the shared CsvStore
   Main.kt            commands, matching, help
 ```
+
+Between `:core` and `:ui`, roughly 10,300 of the project's 12,000 lines are
+shared. What is left on Android is an activity, a ViewModel, two store adapters
+and the notification plumbing.
 
 The two ports are the whole platform boundary. `DocumentStore` is five methods over
 a folder of named files and `KeyValueStore` is five over device-local settings;
@@ -444,6 +458,14 @@ Design notes worth knowing if you change things:
 - **`Dispatchers.IO` does not exist in common code**, so `Repo` takes the dispatcher as a
   constructor argument. That is also what lets its tests run on `Unconfined` and assert
   immediately rather than waiting on threads.
+- **A green `:ui:assembleDebug` proves nothing about portability.** Shared code compiled
+  for Android can see `android.*` and `java.*`, so a `Context` in a screen builds there
+  without a word. `./gradlew :ui:compileKotlinWasmJs` is the only thing that catches it,
+  and it is what CI runs. If you add a screen, run that before you believe it.
+- **Icons come from `material-icons-core`, deliberately.** `compose.materialIconsExtended`
+  is the accessor Compose Multiplatform advertises, and it is the same icons plus about
+  two thousand more — 15 MB of dex that R8 strips from release but not from debug. Every
+  icon these screens use is in the core set.
 - **Estimated 1RM is Epley** (`weight × (1 + reps/30)`), used to compare sets and detect
   improvement. Unweighted sets compare on reps instead.
 - **Food counts are quantity-weighted.** `qty` means occurrences, never portions: two
