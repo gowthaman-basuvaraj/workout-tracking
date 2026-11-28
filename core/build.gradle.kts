@@ -38,6 +38,11 @@ kotlin {
             // api, not implementation: LocalDate is all over this module's public
             // signatures, so the app and the CLI need it on their own classpath too.
             api("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
+
+            // Settings and the repository expose StateFlow, so this is api too. The
+            // version matches what the Android app already resolves to, so :core does
+            // not drag a second copy of coroutines onto its classpath.
+            api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
         }
         // Tests stay on JUnit4 and JVM-only for now. They exercise commonMain all the
         // same, which is what makes this refactor safe; moving them to kotlin.test is a

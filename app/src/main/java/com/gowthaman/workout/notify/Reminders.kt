@@ -17,6 +17,7 @@ import androidx.core.content.getSystemService
 import com.gowthaman.workout.MainActivity
 import com.gowthaman.workout.R
 import com.gowthaman.workout.data.Prefs
+import com.gowthaman.workout.data.SharedPrefsStore
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.logic.Reminders
@@ -153,7 +154,7 @@ object ReminderAlarm {
  */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val settings = Prefs(context).reminders.value
+        val settings = Prefs(SharedPrefsStore(context)).reminders.value
         if (!settings.enabled) return
         val id = intent.getIntExtra(ReminderAlarm.EXTRA_ID, -1)
         val reminder = settings.reminders.firstOrNull { it.id == id } ?: return
@@ -176,7 +177,7 @@ class RescheduleReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             "android.intent.action.QUICKBOOT_POWERON",
-            -> ReminderAlarm.applyAll(context, Prefs(context).reminders.value)
+            -> ReminderAlarm.applyAll(context, Prefs(SharedPrefsStore(context)).reminders.value)
         }
     }
 }

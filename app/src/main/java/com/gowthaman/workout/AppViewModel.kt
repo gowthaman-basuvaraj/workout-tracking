@@ -1,8 +1,10 @@
 package com.gowthaman.workout
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
+import kotlinx.coroutines.Dispatchers
 import androidx.lifecycle.viewModelScope
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseDef
@@ -14,6 +16,8 @@ import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Prefs
+import com.gowthaman.workout.data.SafStore
+import com.gowthaman.workout.data.SharedPrefsStore
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Repo
 import com.gowthaman.workout.data.Settings
@@ -66,8 +70,23 @@ data class DayView(
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val prefs = Prefs(app)
-    private val repo = Repo(app, prefs)
+    private val prefs = Prefs(SharedPrefsStore(app))
+
+    /**
+     * The repository lives in :core now, so the three Android-shaped things it needs are
+     * handed to it here: how to open a SAF tree, how to read a bundled asset, and which
+     * dispatcher blocking file work belongs on.
+     */
+    private val repo = Repo(
+        prefs = prefs,
+        openStore = { location -> SafStore(app, Uri.parse(location)) },
+        bundledDoc = { name ->
+            runCatching {
+                app.assets.open(name).use { it.readBytes().toString(Charsets.UTF_8) }
+            }.getOrDefault("")
+        },
+        io = Dispatchers.IO,
+    )
 
     val settings: StateFlow<Settings> = prefs.state
 
@@ -260,7 +279,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ data
 
-    fun useFolder(uri: Uri) = repo.useFolder(uri)
+    /**
+     * Takes the long-lived grant on the picked tree, then hands the location to :core.
+     *
+     * The permission is the Android-only half and stays here. Without it the URI works
+     * until the process dies and then silently stops, which looks like lost data.
+     */
+    fun useFolder(uri: Uri) {
+        runCatching {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+        repo.useFolder(uri.toString())
+    }
 
     fun forgetFolder() = repo.forgetFolder()
 

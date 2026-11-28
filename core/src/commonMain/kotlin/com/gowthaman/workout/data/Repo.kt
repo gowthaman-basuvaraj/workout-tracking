@@ -1,10 +1,8 @@
 package com.gowthaman.workout.data
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
+import kotlin.concurrent.Volatile
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,12 +23,31 @@ import com.gowthaman.workout.data.YearMonth
  * and written back to CSV after every change. Reads are therefore instant and the files on
  * disk are always current, which is what lets a sync client pick changes up immediately.
  */
-class Repo(context: Context, private val prefs: Prefs) {
+class Repo(
+    private val prefs: Prefs,
+    /**
+     * Opens the data folder at a location this repository does not interpret.
+     *
+     * The string came from [Settings.folderUri] and means whatever the platform that
+     * wrote it says it means -- a SAF tree URI on Android, a path on a desktop. Keeping
+     * it opaque here is what lets the folder be chosen on one platform and simply handed
+     * over on another.
+     */
+    private val openStore: (String) -> DocumentStore,
+    /** Reads one of the generated docs out of the app's own bundle. */
+    private val bundledDoc: (String) -> String,
+    /**
+     * Where blocking file work goes.
+     *
+     * Injected rather than reached for: `Dispatchers.IO` does not exist in common code,
+     * and passing it in means a test can hand over an immediate dispatcher instead of
+     * waiting on real threads.
+     */
+    private val io: CoroutineDispatcher,
+) {
 
     enum class Status { NO_FOLDER, LOADING, READY, ERROR }
-
-    private val appContext = context.applicationContext
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + io)
     private val writeLock = Mutex()
 
     /**
@@ -92,7 +109,7 @@ class Repo(context: Context, private val prefs: Prefs) {
     /** The folder's README and analysis script only need writing once per folder. */
     private var docsEnsured = false
 
-    private val folderUri: Uri? get() = prefs.current.folderUri?.let(Uri::parse)
+    private val folderLocation: String? get() = prefs.current.folderUri
 
     /**
      * The archive, pointed at the folder currently chosen.
@@ -101,10 +118,10 @@ class Repo(context: Context, private val prefs: Prefs) {
      * (Settings can re-pick or forget one) and a [SafStore] is a URI and a context --
      * cheaper to construct than to invalidate correctly.
      */
-    private val archive: CsvStore? get() = folderUri?.let { CsvStore(SafStore(appContext, it)) }
+    private val archive: CsvStore? get() = folderLocation?.let { CsvStore(openStore(it)) }
 
     init {
-        if (folderUri != null) reload() else _status.value = Status.NO_FOLDER
+        if (folderLocation != null) reload() else _status.value = Status.NO_FOLDER
 
         // Mirror settings into the folder whenever they change, so the desktop CLI agrees
         // with the app about units and the overload window instead of guessing. The copy
@@ -117,35 +134,23 @@ class Repo(context: Context, private val prefs: Prefs) {
         }
     }
 
-    /**
-     * The README and analysis script shipped inside the APK.
-     *
-     * :core decides when the folder's copies are stale; where the fresh copy comes from
-     * is per-platform, which is why it arrives as a function rather than a path.
-     */
-    private fun bundledDoc(name: String): String =
-        runCatching {
-            appContext.assets.open(name).use { it.readBytes().toString(Charsets.UTF_8) }
-        }.getOrDefault("")
-
     private suspend fun publishSettings(settings: Settings) {
         val csv = archive ?: return
         writeLock.withLock {
-            runCatching { withContext(Dispatchers.IO) { csv.saveSettings(settings) } }
+            runCatching { withContext(io) { csv.saveSettings(settings) } }
         }
     }
 
     // -------------------------------------------------------------------- folder
 
-    /** Persists the chosen SAF tree so it survives reboots, then loads from it. */
-    fun useFolder(uri: Uri) {
-        runCatching {
-            appContext.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            )
-        }
-        prefs.update { it.copy(folderUri = uri.toString()) }
+    /**
+     * Remembers the folder so it survives a restart, then loads from it.
+     *
+     * Whatever the platform had to do to earn access to that location -- Android has to
+     * take a persistable permission on the tree -- has happened before this is called.
+     */
+    fun useFolder(location: String) {
+        prefs.update { it.copy(folderUri = location) }
         docsEnsured = false
         // A different folder holds different data, so this is a first load again.
         everLoaded = false
@@ -185,9 +190,9 @@ class Repo(context: Context, private val prefs: Prefs) {
             // and both would otherwise try to create the folder's README side by side).
             writeLock.withLock {
                 try {
-                    val snapshot = withContext(Dispatchers.IO) {
+                    val snapshot = withContext(io) {
                         if (!docsEnsured) {
-                            csv.ensureDocs(::bundledDoc)
+                            csv.ensureDocs(bundledDoc)
                             docsEnsured = true
                         }
                         csv.load()
@@ -204,7 +209,7 @@ class Repo(context: Context, private val prefs: Prefs) {
                     refreshFoodCatalog()
                     refreshStressCatalog()
                     runCatching {
-                        withContext(Dispatchers.IO) {
+                        withContext(io) {
                             csv.saveSettings(prefs.current.copy(folderUri = null))
                         }
                     }
@@ -249,7 +254,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             unit = prefs.current.weightUnit,
             bodyweight = bodyweight,
             notes = Csv.clean(notes),
-            loggedAt = System.currentTimeMillis(),
+            loggedAt = nowMillis(),
         )
         _strength.value = _strength.value + row
         setOf(YearMonth.from(date))
@@ -307,7 +312,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             distance = distance.coerceAtLeast(0.0),
             distUnit = prefs.current.distanceUnit,
             notes = Csv.clean(notes),
-            loggedAt = System.currentTimeMillis(),
+            loggedAt = nowMillis(),
         )
         _cardio.value = _cardio.value + row
         setOf(YearMonth.from(date))
@@ -351,7 +356,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             tags = tags,
             qty = qty.coerceAtLeast(1),
             notes = Csv.clean(notes),
-            loggedAt = System.currentTimeMillis(),
+            loggedAt = nowMillis(),
         )
         _food.value = _food.value + row
         setOf(YearMonth.from(date))
@@ -378,7 +383,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             name = trimmed,
             purpose = purpose,
             scale = scale,
-            createdAt = System.currentTimeMillis(),
+            createdAt = nowMillis(),
         )
         emptySet()
     }
@@ -440,7 +445,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             durationMin = durationMin,
             quality = quality,
             notes = Csv.clean(notes),
-            loggedAt = System.currentTimeMillis(),
+            loggedAt = nowMillis(),
         )
         _sleep.value = _sleep.value.filterNot { it.date == date } + row
         setOf(YearMonth.from(date))
@@ -470,7 +475,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             direction = direction,
             weight = weight,
             notes = Csv.clean(notes),
-            loggedAt = System.currentTimeMillis(),
+            loggedAt = nowMillis(),
         )
         _stress.value = _stress.value + row
         setOf(YearMonth.from(date))
@@ -491,7 +496,7 @@ class Repo(context: Context, private val prefs: Prefs) {
             name = trimmed,
             direction = direction,
             weight = weight,
-            createdAt = System.currentTimeMillis(),
+            createdAt = nowMillis(),
         )
         emptySet()
     }
@@ -533,7 +538,7 @@ class Repo(context: Context, private val prefs: Prefs) {
         storedOnly = storedOnly + ExerciseDef(
             name = trimmed,
             kind = kind,
-            createdAt = System.currentTimeMillis(),
+            createdAt = nowMillis(),
         )
         emptySet()
     }
@@ -601,7 +606,7 @@ class Repo(context: Context, private val prefs: Prefs) {
                 refreshStressCatalog()
                 val csv = archive ?: return@withLock
                 try {
-                    withContext(Dispatchers.IO) {
+                    withContext(io) {
                         touched.forEach { month ->
                             csv.saveStrengthMonth(month, _strength.value.filter { YearMonth.from(it.date) == month })
                             csv.saveCardioMonth(month, _cardio.value.filter { YearMonth.from(it.date) == month })
