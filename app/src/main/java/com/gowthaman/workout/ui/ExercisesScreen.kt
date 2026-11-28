@@ -39,7 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.data.ExerciseDef
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodScale
@@ -103,7 +103,7 @@ private fun FoodDef.toRow(): LibraryRow {
 
 @Composable
 fun ExercisesScreen(
-    vm: AppViewModel,
+    vm: AppModel,
     onOpenExercise: (String) -> Unit,
 ) {
     val catalog by vm.catalog.collectAsStateWithLifecycle()

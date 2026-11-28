@@ -32,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.SleepQuality
@@ -56,7 +56,7 @@ import kotlinx.datetime.daysUntil
 
 @Composable
 fun DashboardScreen(
-    vm: AppViewModel,
+    vm: AppModel,
     onOpenExercise: (String) -> Unit,
 ) {
     val data by vm.dashboard.collectAsStateWithLifecycle()

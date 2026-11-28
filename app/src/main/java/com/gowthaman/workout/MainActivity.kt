@@ -24,13 +24,13 @@ class MainActivity : ComponentActivity() {
         // slow or unreachable folder must never leave the splash up indefinitely.
         val startedAt = System.currentTimeMillis()
         splash.setKeepOnScreenCondition {
-            vm.status.value == Repo.Status.LOADING &&
+            vm.model.status.value == Repo.Status.LOADING &&
                 System.currentTimeMillis() - startedAt < MAX_SPLASH_HOLD_MS
         }
 
         setContent {
             UncomplicatedTheme {
-                Root(vm)
+                Root(vm.model)
             }
         }
     }
@@ -40,19 +40,19 @@ class MainActivity : ComponentActivity() {
     // locking behind those would be absurd.
     override fun onStart() {
         super.onStart()
-        vm.onForegrounded()
+        vm.model.onForegrounded()
     }
 
     override fun onStop() {
         super.onStop()
-        vm.onBackgrounded()
+        vm.model.onBackgrounded()
     }
 
     override fun onResume() {
         super.onResume()
         // Re-read the folder so edits made on a laptop, or pulled in by a sync client while
         // the app sat in the background, are visible straight away.
-        vm.refresh()
+        vm.model.refresh()
     }
 
     private companion object {

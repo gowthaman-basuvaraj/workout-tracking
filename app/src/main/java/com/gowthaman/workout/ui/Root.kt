@@ -45,7 +45,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
+import com.gowthaman.workout.useFolder
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.data.Repo
@@ -69,7 +70,7 @@ object Routes {
 }
 
 @Composable
-fun Root(vm: AppViewModel) {
+fun Root(vm: AppModel) {
     val status by vm.status.collectAsStateWithLifecycle()
     val locked by vm.locked.collectAsStateWithLifecycle()
 
@@ -84,7 +85,8 @@ fun Root(vm: AppViewModel) {
     }
 
     if (status == Repo.Status.NO_FOLDER) {
-        FolderGate(onPick = vm::useFolder)
+        val context = LocalContext.current
+        FolderGate(onPick = { uri -> vm.useFolder(context, uri) })
         return
     }
 

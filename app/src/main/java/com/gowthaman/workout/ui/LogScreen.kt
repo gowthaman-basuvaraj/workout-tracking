@@ -47,7 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.cardioOf
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
@@ -89,7 +89,7 @@ import kotlinx.datetime.daysUntil
 
 @Composable
 fun LogScreen(
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     initialKind: Kind,
     initialExercise: String,
@@ -387,7 +387,7 @@ private fun ExercisePicker(
 @Composable
 private fun StrengthForm(
     onLogged: (String) -> Unit,
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     exercise: String,
     settings: Settings,
@@ -651,7 +651,7 @@ private fun SuggestionCard(
 @Composable
 private fun CardioForm(
     onLogged: (String) -> Unit,
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     activity: String,
     settings: Settings,
@@ -881,7 +881,7 @@ private fun CardioSuggestionCard(
 
 @Composable
 private fun SleepForm(
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     existing: SleepNight?,
     onLogged: (String) -> Unit,
@@ -1012,7 +1012,7 @@ fun stressPickerNames(catalog: List<StressDef>): List<String> =
 @Composable
 private fun StressForm(
     onLogged: (String) -> Unit,
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     label: String,
     catalog: List<StressDef>,
@@ -1129,7 +1129,7 @@ fun foodPickerNames(catalog: List<FoodDef>): List<String> =
 @Composable
 private fun FoodForm(
     onLogged: (String) -> Unit,
-    vm: AppViewModel,
+    vm: AppModel,
     date: LocalDate,
     item: String,
     catalog: List<FoodDef>,

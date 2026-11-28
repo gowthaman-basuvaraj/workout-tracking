@@ -43,7 +43,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.R
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
@@ -69,7 +69,7 @@ import kotlinx.datetime.LocalDate
 
 @Composable
 fun DayScreen(
-    vm: AppViewModel,
+    vm: AppModel,
     onLog: (Kind, String?) -> Unit,
     onOpenExercise: (String) -> Unit,
     onOpenGuide: () -> Unit,

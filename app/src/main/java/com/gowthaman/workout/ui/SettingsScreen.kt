@@ -56,12 +56,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
+import com.gowthaman.workout.useFolder
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.fmt
 
 @Composable
-fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
+fun SettingsScreen(vm: AppModel, onOpenGuide: () -> Unit) {
+    // For the persistable grant on a newly picked folder; see AppModel.useFolder.
+    val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val lockEnabled by vm.lockEnabled.collectAsStateWithLifecycle()
@@ -264,7 +267,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenGuide: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.useFolder(uri)
+                    vm.useFolder(context, uri)
                     confirmChangeFolder = null
                 }) { Text("Use folder") }
             },
@@ -367,7 +370,7 @@ private fun NumberSetting(
  * a week later.
  */
 @Composable
-private fun ReminderCard(vm: AppViewModel, settings: ReminderSettings) {
+private fun ReminderCard(vm: AppModel, settings: ReminderSettings) {
     val context = LocalContext.current
     var deniedNotice by remember { mutableStateOf(false) }
 

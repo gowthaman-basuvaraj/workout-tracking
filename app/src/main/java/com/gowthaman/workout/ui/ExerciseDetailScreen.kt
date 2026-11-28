@@ -36,7 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.AppModel
 import com.gowthaman.workout.cardioOf
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
@@ -63,7 +63,7 @@ import kotlinx.datetime.plus
 
 @Composable
 fun ExerciseDetailScreen(
-    vm: AppViewModel,
+    vm: AppModel,
     exercise: String,
     onBack: () -> Unit,
     onOpenDay: (LocalDate) -> Unit,
