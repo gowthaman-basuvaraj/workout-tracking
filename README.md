@@ -392,22 +392,40 @@ core/     Kotlin Multiplatform (commonMain) — shared by :app and :cli
     Catalog.kt      name matching, canonical spelling, catalog rebuilding
     DateFormat.kt   "3 days ago" and friends
     Dates.kt        today(), YearMonth, row ids, padding — the java.* replacements
+    DocumentStore.kt  THE PORT: list/read/write/append/delete. All a platform owes us
+    KeyValueStore.kt  the same idea for device-local settings
+    CsvStore.kt     which file holds what, append-vs-rewrite. On top of the port
+    Repo.kt         in-memory source of truth with CSV write-through
+    Prefs.kt        the settings schema and its defaults
   logic/
     Overload.kt     the progression engine
     Summary.kt      the shareable text, shared by the share sheet and the CLI
     Stats.kt        dashboard aggregates
-  166 unit tests (jvmTest)
+    ReminderScheduler.kt  the port for arming nudges
+  AppModel.kt       the app minus the pixels: selected day, derived views, commands
+  174 unit tests (jvmTest)
 
-app/      Android
-  data/CsvStore.kt  folder I/O through the Storage Access Framework
-  data/Repo.kt      in-memory source of truth with CSV write-through
-  data/Prefs.kt     SharedPreferences
-  ui/               Compose screens: Day, Log, Library, detail, Dashboard, Settings
+app/      Android — and only what is actually Android
+  data/SafStore.kt        the port, over the Storage Access Framework
+  data/SharedPrefsStore.kt  the port, over SharedPreferences
+  notify/                 AlarmManager and the notification channel
+  lock/Biometrics.kt      BiometricPrompt
+  AppViewModel.kt         builds AppModel and lends it a lifecycle-scoped scope
+  ui/                     Compose screens: Day, Log, Library, detail, Dashboard, Settings
 
 cli/      desktop
-  Folder.kt         the same folder through java.io.File
-  Main.kt           commands, matching, help
+  DirectoryStore.kt  the port, over java.io.File — 30 lines
+  Folder.kt          catalogs and unit inference on top of the shared CsvStore
+  Main.kt            commands, matching, help
 ```
+
+The two ports are the whole platform boundary. `DocumentStore` is five methods over
+a folder of named files and `KeyValueStore` is five over device-local settings;
+`ReminderScheduler` adds two for arming nudges. Neither storage port mentions folder
+picking, permissions, URIs or MIME types, because that is exactly where the platforms
+disagree — Android hands over a user-picked SAF tree, a desktop takes a path, and iOS
+gives an app its own Documents directory that the Files app can expose. All three can
+answer "read me food-2026-11.csv", so that is where the line is drawn.
 
 Design notes worth knowing if you change things:
 
@@ -418,6 +436,14 @@ Design notes worth knowing if you change things:
 - **Nothing in `:core` may import `android.*` or `java.*`.** The first rule is why the CLI
   exists without a second implementation of anything; the second is why an iOS target stays
   one line away. The native canary target enforces the second one at compile time.
+- **Platform code implements a port; it does not own logic.** Before this split the app and
+  the CLI each carried their own copy of what writing to the folder meant, and the copies
+  drifted: the CLI's appender once wrote a nine-column row under an eight-column header,
+  because only one of them had learned about food tags. If you find yourself adding a rule
+  to `SafStore` or `DirectoryStore`, it belongs in `CsvStore` instead.
+- **`Dispatchers.IO` does not exist in common code**, so `Repo` takes the dispatcher as a
+  constructor argument. That is also what lets its tests run on `Unconfined` and assert
+  immediately rather than waiting on threads.
 - **Estimated 1RM is Epley** (`weight × (1 + reps/30)`), used to compare sets and detect
   improvement. Unweighted sets compare on reps instead.
 - **Food counts are quantity-weighted.** `qty` means occurrences, never portions: two
