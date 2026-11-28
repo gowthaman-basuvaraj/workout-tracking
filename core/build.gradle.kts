@@ -19,6 +19,12 @@ kotlin {
     // iOS is only declared on a Mac, because Kotlin/Native cannot build Apple targets on
     // any other host. Declaring them unconditionally would break every Windows and Linux
     // build of the project for the sake of a target they cannot compile anyway.
+    // wasm has neither a JVM nor an Android runtime underneath it, so it catches a stray
+    // java.* import the way the native target does -- and unlike the native target it is
+    // host-independent, which is what lets :ui share the same guard on any machine.
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs { browser() }
+
     val os = System.getProperty("os.name")
     when {
         os.startsWith("Mac") -> {

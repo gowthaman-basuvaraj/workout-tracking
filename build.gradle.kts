@@ -13,4 +13,8 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
     id("org.jetbrains.kotlin.jvm") version "2.2.20" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.20" apply false
+    // Compose Multiplatform: the same Compose, built for more than one platform. 1.12.x
+    // is the line that targets Kotlin 2.2, which is where AGP pins us.
+    id("org.jetbrains.compose") version "1.10.3" apply false
+    id("com.android.library") version "8.13.2" apply false
 }

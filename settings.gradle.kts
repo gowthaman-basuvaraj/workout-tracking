@@ -15,5 +15,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Uncomplicated"
 include(":core")
+include(":ui")
 include(":app")
 include(":cli")
