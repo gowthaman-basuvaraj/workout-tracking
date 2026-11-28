@@ -429,6 +429,9 @@ cli/      desktop
   Main.kt            commands, matching, help
 ```
 
+`docs/release-keys.md` covers the release signing material: what the key is,
+how much losing it would actually cost, and how to get it back.
+
 `docs/ios-port.md` is where the iOS work is written down: the eight seams, the
 ruling already made on each known issue, and the version pins that cannot move
 independently. Read it before starting that work, not during.

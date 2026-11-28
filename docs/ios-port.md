@@ -312,7 +312,9 @@ So that their absence is not mistaken for an oversight.
 
 - **`FLAG_SECURE`** — the lock does not hide the app from the recents screen.
 - **A configurable lock grace period** — it is fixed at 60 seconds.
-- **The keystore has no off-server backup.** It exists only on the Jenkins
-  server. Losing it means never being able to update the Play listing again.
-  This is the highest-consequence item on this page and has nothing to do with
-  iOS.
+- **The keystore backup.** See `docs/release-keys.md`, which supersedes what
+  this page said in an earlier draft. The key on Jenkins is the *upload* key,
+  not the app signing key -- `life.uncomplicated` is enrolled in Play App
+  Signing, so Google holds the signing key and a lost upload key is a reset
+  request and a few days, not a dead listing. Still worth having a copy off
+  that server, and that page says how.
