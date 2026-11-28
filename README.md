@@ -31,7 +31,11 @@ being read and capped at 1.5s, so a slow or unreachable folder can never strand 
 ## What it does
 
 **Log a day.** Pick a date (arrows or the date picker), tap **Log**, type an exercise, enter
-reps and weight. The exercise picker starts empty and fills itself in from whatever you
+reps and weight. The five kinds sit in a bar along the bottom, where a thumb is, ordered by
+how many days out of the last thirty you actually logged each one — so the busiest thing is
+nearest. Sleep drops to the end once tonight is logged, since there is only ever one night.
+The ranking comes off a 30-day window, so it shifts over weeks rather than between taps and
+a position learned by thumb stays learned. The exercise picker starts empty and fills itself in from whatever you
 type — the second time you log "Bench press" it is one tap.
 
 **Weight or bodyweight.** A set is either weighted (`40 kg`) or a bodyweight movement

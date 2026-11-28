@@ -76,6 +76,7 @@ fun DayScreen(
     val day by vm.day.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val guideSeen by vm.guideSeen.collectAsStateWithLifecycle()
+    val kindOrder by vm.kindOrder.collectAsStateWithLifecycle()
     val today = LocalDate.now()
 
     var confirmDelete by remember { mutableStateOf<ExerciseSession?>(null) }
@@ -150,21 +151,14 @@ fun DayScreen(
                             action = {
                                 // Wraps whole buttons onto a second line; a plain Row
                                 // squeezes the last one until its label breaks mid-word.
+                                // Same order as the bar on the log screen. Two different
+                                // orders for the same five things would be worse than one
+                                // order that is occasionally not what you wanted.
                                 CenteredChipFlow {
-                                    FilledTonalButton(onClick = { onLog(Kind.STRENGTH, null) }) {
-                                        Text("Strength", maxLines = 1)
-                                    }
-                                    FilledTonalButton(onClick = { onLog(Kind.CARDIO, null) }) {
-                                        Text("Cardio", maxLines = 1)
-                                    }
-                                    FilledTonalButton(onClick = { onLog(Kind.FOOD, null) }) {
-                                        Text("Food", maxLines = 1)
-                                    }
-                                    FilledTonalButton(onClick = { onLog(Kind.SLEEP, null) }) {
-                                        Text("Sleep", maxLines = 1)
-                                    }
-                                    FilledTonalButton(onClick = { onLog(Kind.STRESS, null) }) {
-                                        Text("Stress", maxLines = 1)
+                                    kindOrder.forEach { kind ->
+                                        FilledTonalButton(onClick = { onLog(kind, null) }) {
+                                            Text(kind.label, maxLines = 1)
+                                        }
                                     }
                                 }
                             },

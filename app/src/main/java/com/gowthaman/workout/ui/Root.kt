@@ -76,7 +76,10 @@ fun Root(vm: AppViewModel) {
     // Before everything, including the folder picker: whatever is on the other side of
     // this is the thing the lock exists to keep off a borrowed phone.
     if (locked) {
-        LockGate(onUnlocked = vm::unlock)
+        LockGate(
+            onUnlocked = vm::unlock,
+            onUnlockable = vm::abandonLock,
+        )
         return
     }
 
@@ -250,10 +253,18 @@ private fun LoadingGate() {
  * something to press, or the app is a dead end until it is force-stopped.
  */
 @Composable
-private fun LockGate(onUnlocked: () -> Unit) {
+private fun LockGate(onUnlocked: () -> Unit, onUnlockable: () -> Unit) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     var message by remember { mutableStateOf<String?>(null) }
+
+    // The lock borrows the device's own unlock, so removing the screen lock leaves it
+    // with nothing to ask for -- and anyone who did that would be shut out of their own
+    // log for good, by a lock that was protecting nothing in the first place. It gives
+    // way instead, and switches itself off so Settings tells the truth afterwards.
+    val unavailable = Biometrics.unavailableReason(context)
+    LaunchedEffect(unavailable) { if (unavailable != null) onUnlockable() }
+    if (unavailable != null) return
 
     val ask: () -> Unit = {
         val host = activity

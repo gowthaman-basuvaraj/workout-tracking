@@ -2,6 +2,7 @@ package com.gowthaman.workout.ui
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -50,7 +54,6 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
-import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Purpose
@@ -67,6 +70,7 @@ import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.e1rm
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDuration
+import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.fullLabel
 import com.gowthaman.workout.data.loadLabel
@@ -108,6 +112,7 @@ fun LogScreen(
     var kind by remember { mutableStateOf(lockedKind ?: initialKind) }
     var exercise by remember { mutableStateOf(initialExercise) }
 
+    val kindOrder by vm.kindOrder.collectAsStateWithLifecycle()
     val toast = rememberToaster()
 
     // Done closes the screen; it does not save. Nothing on the way out said so, and a
@@ -153,47 +158,21 @@ fun LogScreen(
 
         Column(
             Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ChipFlow {
-                FilterChip(
-                    selected = kind == Kind.STRENGTH,
-                    onClick = { kind = Kind.STRENGTH; exercise = "" },
-                    label = { Text("Strength") },
-                )
-                FilterChip(
-                    selected = kind == Kind.CARDIO,
-                    onClick = { kind = Kind.CARDIO; exercise = "" },
-                    label = { Text("Cardio") },
-                )
-                FilterChip(
-                    selected = kind == Kind.FOOD,
-                    onClick = { kind = Kind.FOOD; exercise = "" },
-                    label = { Text("Food") },
-                )
-                FilterChip(
-                    selected = kind == Kind.SLEEP,
-                    onClick = { kind = Kind.SLEEP; exercise = "" },
-                    label = { Text("Sleep") },
-                )
-                FilterChip(
-                    selected = kind == Kind.STRESS,
-                    onClick = { kind = Kind.STRESS; exercise = "" },
-                    label = { Text("Stress") },
-                )
-            }
-
             if (kind == Kind.SLEEP) {
                 SleepForm(
                     vm = vm,
                     date = date,
                     existing = remember(allSleep, date) { allSleep.firstOrNull { it.date == date } },
                     onLogged = onLogged,
+                    onFinished = onDone,
                 )
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(24.dp))
                 return@Column
             }
 
@@ -272,7 +251,65 @@ fun LogScreen(
                 )
             }
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(24.dp))
+        }
+
+        KindBar(
+            order = kindOrder,
+            selected = kind,
+            onSelect = { picked -> kind = picked; exercise = "" },
+        )
+    }
+}
+
+/**
+ * The five kinds, along the bottom.
+ *
+ * At the top of a scrolling form they were the furthest thing from a thumb on a screen
+ * this tall, and logging is a one-handed job done standing up. The order comes from how
+ * often each is actually reached for, so the busiest thing is nearest the thumb rather
+ * than wherever the enum happened to declare it.
+ *
+ * Equal segments rather than wrapped chips: five chips wrapped onto two rows, and a row
+ * that changes height as the order changes is worse than one that never moves.
+ */
+@Composable
+private fun KindBar(order: List<Kind>, selected: Kind, onSelect: (Kind) -> Unit) {
+    Surface(
+        tonalElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            // No navigationBarsPadding here: Root's scaffold has already consumed that
+            // inset, and applying it twice leaves a band of dead bar under the buttons.
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            order.forEach { kind ->
+                val isSelected = kind == selected
+                Surface(
+                    onClick = { onSelect(kind) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                    else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            kind.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -848,6 +885,7 @@ private fun SleepForm(
     date: LocalDate,
     existing: SleepNight?,
     onLogged: (String) -> Unit,
+    onFinished: () -> Unit,
 ) {
     var duration by remember(date, existing) {
         mutableStateOf(existing?.let { formatSleep(it.durationMin).replace(" ", "") } ?: "")
@@ -927,6 +965,11 @@ private fun SleepForm(
                         (if (existing == null) "Logged " else "Replaced with ") +
                             "${formatSleep(it)} / ${quality.label.lowercase()}"
                     )
+                    // And then leave. There is exactly one night per day, so staying on a
+                    // form that can only overwrite what was just written is an extra tap
+                    // asking to be made by mistake. The toast carries the confirmation
+                    // out with it.
+                    onFinished()
                 }
             },
             enabled = minutes != null,

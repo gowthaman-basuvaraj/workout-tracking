@@ -21,6 +21,7 @@ import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.logic.LockPolicy
+import com.gowthaman.workout.logic.LogOrder
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.notify.ReminderAlarm
@@ -98,12 +99,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Gives up on a lock that can no longer be satisfied, and switches it off.
+     *
+     * Only reachable when the device has no screen lock or biometric left to ask for.
+     * Keeping it on would shut someone out of their own log permanently, to protect
+     * files that a file manager can still read.
+     */
+    fun abandonLock() {
+        prefs.setLockEnabled(false)
+        _locked.value = false
+    }
+
     fun unlock() {
         _locked.value = false
         // So the next return to the foreground is measured from now rather than from the
         // backgrounding that caused this lock.
         leftAt = System.currentTimeMillis()
     }
+
+    /**
+     * The order to offer the five kinds in, from how often each is actually reached for.
+     *
+     * Recomputed when the data changes rather than on every tap, so a position learned by
+     * thumb stays learned for weeks at a time.
+     */
+    val kindOrder: StateFlow<List<Kind>> = combine(
+        repo.strength, repo.cardio, repo.food, repo.sleep, repo.stress,
+    ) { strength, cardio, food, sleep, stress ->
+        LogOrder.rank(
+            today = LocalDate.now(),
+            strength = strength,
+            cardio = cardio,
+            food = food,
+            sleep = sleep,
+            stress = stress,
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, LogOrder.DEFAULT)
 
     val reminders: StateFlow<ReminderSettings> = prefs.reminders
 

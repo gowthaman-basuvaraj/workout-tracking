@@ -5,7 +5,13 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-enum class Kind { STRENGTH, CARDIO, FOOD, SLEEP, STRESS }
+enum class Kind(val label: String) {
+    STRENGTH("Strength"),
+    CARDIO("Cardio"),
+    FOOD("Food"),
+    SLEEP("Sleep"),
+    STRESS("Stress"),
+}
 
 /**
  * Reporting window for the dashboard.
