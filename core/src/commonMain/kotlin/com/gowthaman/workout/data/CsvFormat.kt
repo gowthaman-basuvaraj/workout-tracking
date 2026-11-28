@@ -1,10 +1,6 @@
 package com.gowthaman.workout.data
 
-import java.time.LocalDate
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import java.util.UUID
+import kotlinx.datetime.LocalDate
 
 /**
  * The on-disk format: file names, headers, and how a row becomes text and back.
@@ -56,12 +52,9 @@ object CsvFormat {
         "Written by the Uncomplicated app. Read-only here: the app overwrites this " +
             "file whenever a setting changes, so edits made on a computer will be lost."
 
-    private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    fun newId(): String = newRowId()
 
-    fun newId(): String = UUID.randomUUID().toString().replace("-", "").take(12)
-
-    fun monthSuffix(month: YearMonth): String =
-        String.format(Locale.US, "%04d-%02d", month.year, month.monthValue)
+    fun monthSuffix(month: YearMonth): String = "${month.year.pad4()}-${month.month.pad2()}"
 
     fun strengthFile(month: YearMonth): String = STRENGTH_PREFIX + monthSuffix(month) + EXT
     fun cardioFile(month: YearMonth): String = CARDIO_PREFIX + monthSuffix(month) + EXT
@@ -70,7 +63,7 @@ object CsvFormat {
     fun stressFile(month: YearMonth): String = STRESS_PREFIX + monthSuffix(month) + EXT
 
     fun parseDate(raw: String): LocalDate? =
-        runCatching { LocalDate.parse(raw.trim(), ISO) }.getOrNull()
+        runCatching { LocalDate.parse(raw.trim()) }.getOrNull()
 
     /**
      * Sync tools leave "...sync-conflict..." copies beside the original; counting them

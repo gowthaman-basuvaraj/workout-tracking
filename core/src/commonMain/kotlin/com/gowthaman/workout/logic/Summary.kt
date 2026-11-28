@@ -4,6 +4,7 @@ import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.data.formatSleep
+import kotlin.math.roundToInt
 
 /**
  * The dashboard as shareable plain text.
@@ -102,7 +103,7 @@ object Summary {
         val shown = parts.filter { it.second > 0 }
         if (shown.size < 2) return null
         val percents = shown.mapIndexed { i, (_, count) ->
-            if (i < shown.lastIndex) Math.round(count * 100.0 / total).toInt() else -1
+            if (i < shown.lastIndex) (count * 100.0 / total).roundToInt() else -1
         }.toMutableList()
         percents[percents.lastIndex] = 100 - percents.dropLast(1).sum()
         return shown.mapIndexed { i, (label, _) -> "${label.lowercase()} ${percents[i]}%" }

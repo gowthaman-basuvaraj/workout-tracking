@@ -47,7 +47,7 @@ import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.logic.Reminders
 import com.gowthaman.workout.notify.ReminderAlarm
-import java.time.DayOfWeek
+import kotlinx.datetime.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
 import androidx.compose.ui.platform.LocalContext

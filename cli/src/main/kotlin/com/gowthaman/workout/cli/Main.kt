@@ -3,6 +3,7 @@ package com.gowthaman.workout.cli
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.Catalog
 import com.gowthaman.workout.data.CsvFormat
+import com.gowthaman.workout.data.CsvFormat as Fmt
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.FoodTag
@@ -14,22 +15,24 @@ import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
-import com.gowthaman.workout.data.formatSleep
-import com.gowthaman.workout.data.parseSleepDuration
-import com.gowthaman.workout.data.CsvFormat as Fmt
 import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDuration
+import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.loadLabel
+import com.gowthaman.workout.data.parseSleepDuration
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.summary
+import com.gowthaman.workout.data.today
 import com.gowthaman.workout.logic.Stats
 import com.gowthaman.workout.logic.Summary
 import java.io.File
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.daysUntil
 import kotlin.system.exitProcess
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 
 private const val CONFIG = ".uncomplicated"
 private const val LAST = ".uncomplicated-last"
@@ -252,13 +255,13 @@ private fun describe(entry: FoodEntry): String =
         if (entry.tags.isEmpty()) "" else "  (${FoodTag.labels(entry.tags)})"
 
 private fun onDate(date: LocalDate): String =
-    if (date == LocalDate.now()) "" else "  on ${date.shortLabel()}"
+    if (date == today()) "" else "  on ${date.shortLabel()}"
 
 /** The same nudge the app shows at the moment of logging. */
 private fun recap(folder: Folder, entry: FoodEntry, date: LocalDate) {
     val key = catalogKey(entry.item)
     val recent = folder.food.filter {
-        catalogKey(it.item) == key && it.date <= date && ChronoUnit.DAYS.between(it.date, date) < 30
+        catalogKey(it.item) == key && it.date <= date && it.date.daysUntil(date) < 30
     }
     val total = recent.sumOf { it.qty } + entry.qty
     println("        that is $total in the last 30 days")
@@ -460,7 +463,7 @@ private fun logStress(args: Args) {
 
     if (direction == StressDirection.BUSTER) {
         val days = folder.stress
-            .filter { it.direction == StressDirection.BUSTER && it.date > event.date.minusDays(30) }
+            .filter { it.direction == StressDirection.BUSTER && it.date > event.date.minus(30, DateTimeUnit.DAY) }
             .map { it.date }.toMutableSet()
         days += event.date
         println("        busters on ${days.size} of the last 30 days")
@@ -645,7 +648,7 @@ private fun showDay(args: Args) {
 private fun due(args: Args) {
     val folder = resolveFolder(args)
     val dashboard = Stats.build(
-        folder.strength, folder.cardio, folder.settings, LocalDate.now(), folder.food
+        folder.strength, folder.cardio, folder.settings, today(), folder.food
     )
 
     if (!folder.hasPublishedSettings) {
@@ -674,7 +677,7 @@ private fun summary(args: Args) {
     println(
         Summary.text(
             Stats.build(
-                folder.strength, folder.cardio, folder.settings, LocalDate.now(),
+                folder.strength, folder.cardio, folder.settings, today(),
                 folder.food, folder.sleep, folder.stress,
             ),
             folder.settings,

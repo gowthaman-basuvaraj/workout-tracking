@@ -83,9 +83,9 @@ import com.gowthaman.workout.logic.Overload
 import com.gowthaman.workout.logic.StrengthAdvice
 import com.gowthaman.workout.pickerNames
 import com.gowthaman.workout.sessionsOf
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
 
 @Composable
 fun LogScreen(
@@ -1273,7 +1273,7 @@ private fun ItemRecap(item: String, allFood: List<FoodEntry>, date: LocalDate) {
         allFood.filter {
             catalogKey(it.item) == key &&
                 it.date <= date &&
-                ChronoUnit.DAYS.between(it.date, date) < 30
+                it.date.daysUntil(date) < 30
         }
     }
     if (recent.isEmpty()) return

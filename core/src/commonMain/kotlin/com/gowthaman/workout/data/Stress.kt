@@ -1,6 +1,6 @@
 package com.gowthaman.workout.data
 
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /** Whether something wound you up or wound you down. */
 enum class StressDirection(val label: String) {

@@ -50,7 +50,7 @@ import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.agoLabel
 import com.gowthaman.workout.data.catalogKey
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /** One row of the library, whichever catalog it came from. */
 private data class LibraryRow(

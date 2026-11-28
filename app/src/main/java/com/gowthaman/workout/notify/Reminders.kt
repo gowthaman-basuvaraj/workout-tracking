@@ -20,8 +20,11 @@ import com.gowthaman.workout.data.Prefs
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
 import com.gowthaman.workout.logic.Reminders
-import java.time.LocalDateTime
-import java.time.ZoneId
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Daily nudges, scheduled on the device and nowhere else.
@@ -62,13 +65,16 @@ object ReminderAlarm {
 
     private fun schedule(context: Context, reminder: Reminder) {
         val alarms = context.getSystemService<AlarmManager>() ?: return
-        val next = Reminders.nextTrigger(reminder, LocalDateTime.now())
+        val next = Reminders.nextTrigger(
+            reminder,
+            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
+        )
         val pending = pendingAlarm(context, reminder.id)
         if (next == null) {
             alarms.cancel(pending)
             return
         }
-        val at = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val at = next.toInstant(TimeZone.currentSystemDefault()).toEpochMilliseconds()
         alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
     }
 

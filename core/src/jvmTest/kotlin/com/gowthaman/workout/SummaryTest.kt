@@ -14,14 +14,16 @@ import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.logic.Stats
 import com.gowthaman.workout.logic.Summary
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class SummaryTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 17)
+    private val today: LocalDate = LocalDate(2026, 11, 17)
     private val settings = Settings()
 
     private fun summaryOf(
@@ -59,7 +61,7 @@ class SummaryTest {
     fun `sleep coverage always travels with the average`() {
         val nights = listOf(
             SleepNight("a", today, 480, SleepQuality.GOOD),
-            SleepNight("b", today.minusDays(1), 360, SleepQuality.POOR),
+            SleepNight("b", today.minus(1, DateTimeUnit.DAY), 360, SleepQuality.POOR),
         )
         val text = summaryOf(sleep = nights)
 

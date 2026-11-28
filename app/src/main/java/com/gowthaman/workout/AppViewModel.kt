@@ -11,36 +11,40 @@ import com.gowthaman.workout.data.FoodDef
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.FoodTag
+import com.gowthaman.workout.data.Kind
+import com.gowthaman.workout.data.Period
+import com.gowthaman.workout.data.Prefs
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.Repo
+import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.StressDef
 import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
-import com.gowthaman.workout.data.Kind
-import com.gowthaman.workout.data.Period
+import com.gowthaman.workout.data.catalogKey
+import com.gowthaman.workout.data.toSessions
+import com.gowthaman.workout.data.today
+import com.gowthaman.workout.data.volume
+import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.LockPolicy
 import com.gowthaman.workout.logic.LogOrder
 import com.gowthaman.workout.logic.Reminder
 import com.gowthaman.workout.logic.ReminderSettings
-import com.gowthaman.workout.notify.ReminderAlarm
-import com.gowthaman.workout.data.Prefs
-import com.gowthaman.workout.data.Repo
-import com.gowthaman.workout.data.Settings
-import com.gowthaman.workout.data.StrengthSet
-import com.gowthaman.workout.data.catalogKey
-import com.gowthaman.workout.data.toSessions
-import com.gowthaman.workout.data.volume
-import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.Stats
+import com.gowthaman.workout.notify.ReminderAlarm
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import java.time.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 
 /** Everything shown for one calendar day. */
 data class DayView(
@@ -128,7 +132,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         repo.strength, repo.cardio, repo.food, repo.sleep, repo.stress,
     ) { strength, cardio, food, sleep, stress ->
         LogOrder.rank(
-            today = LocalDate.now(),
+            today = today(),
             strength = strength,
             cardio = cardio,
             food = food,
@@ -159,7 +163,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Everything on by default: you have already switched reminders on and
                 // asked for this one by name, so asking which days as well is a step too
                 // many. Unticking is one tap.
-                days = java.time.DayOfWeek.entries.toSet(),
+                days = DayOfWeek.entries.toSet(),
             )
         )
     }
@@ -184,7 +188,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val stress: StateFlow<List<StressEvent>> = repo.stress
     val stressCatalog: StateFlow<List<StressDef>> = repo.stressCatalog
 
-    private val _selectedDate = MutableStateFlow(LocalDate.now())
+    private val _selectedDate = MutableStateFlow(today())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
     val day: StateFlow<DayView> =
@@ -222,7 +226,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 totalReps = forDay.sumOf { it.reps },
                 volume = forDay.sumOf { it.volume(cfg.weightUnit, cfg.userBodyweightKg) },
             )
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, DayView(LocalDate.now()))
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, DayView(today()))
 
     val dashboard: StateFlow<Dashboard> =
         combine(
@@ -233,7 +237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 strength = values[0] as List<StrengthSet>,
                 cardio = values[1] as List<CardioEntry>,
                 settings = values[5] as Settings,
-                today = LocalDate.now(),
+                today = today(),
                 food = values[2] as List<FoodEntry>,
                 sleep = values[3] as List<SleepNight>,
                 stress = values[4] as List<StressEvent>,
@@ -247,11 +251,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun shiftDay(days: Long) {
-        _selectedDate.value = _selectedDate.value.plusDays(days)
+        _selectedDate.value = _selectedDate.value.plus(days, DateTimeUnit.DAY)
     }
 
     fun goToToday() {
-        _selectedDate.value = LocalDate.now()
+        _selectedDate.value = today()
     }
 
     // ------------------------------------------------------------------ data

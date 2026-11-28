@@ -1,8 +1,12 @@
 package com.gowthaman.workout.logic
 
 import com.gowthaman.workout.data.Csv
-import java.time.DayOfWeek
-import java.time.LocalDateTime
+import com.gowthaman.workout.data.pad2
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.plus
 
 /**
  * One nudge: what it is called, when it goes off, and on which days.
@@ -27,7 +31,7 @@ data class Reminder(
     val isActive: Boolean get() = days.isNotEmpty()
 
     /** "20:00", for the settings row. */
-    val timeLabel: String get() = "%02d:%02d".format(hour, minute)
+    val timeLabel: String get() = "${hour.pad2()}:${minute.pad2()}"
 
     /** What the notification is titled. A blank label still has to say something. */
     val title: String get() = label.trim().ifBlank { "Anything to write down?" }
@@ -69,12 +73,12 @@ object Reminders {
      */
     fun nextTrigger(reminder: Reminder, now: LocalDateTime): LocalDateTime? {
         if (!reminder.isActive) return null
-        val today = now.toLocalDate()
+        val today = now.date
         for (offset in 0..7) {
-            val day = today.plusDays(offset.toLong())
+            val day = today.plus(offset, DateTimeUnit.DAY)
             if (day.dayOfWeek !in reminder.days) continue
-            val at = day.atTime(reminder.hour, reminder.minute)
-            if (at.isAfter(now)) return at
+            val at = LocalDateTime(day, LocalTime(reminder.hour, reminder.minute))
+            if (at > now) return at
         }
         return null
     }

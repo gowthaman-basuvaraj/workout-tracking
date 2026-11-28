@@ -5,15 +5,15 @@ import com.gowthaman.workout.data.ExerciseSession
 import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.FoodTag
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Purpose
+import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.SleepQuality
+import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.StressDirection
 import com.gowthaman.workout.data.StressEvent
 import com.gowthaman.workout.data.StressWeight
-import com.gowthaman.workout.data.Period
-import com.gowthaman.workout.data.Settings
-import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.e1rm
@@ -21,12 +21,17 @@ import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.score
 import com.gowthaman.workout.data.toSessions
 import com.gowthaman.workout.data.volume
-import java.time.DayOfWeek
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
 
 /** How wide one bar of the volume chart is. */
 enum class BucketUnit { DAY, WEEK, MONTH }
@@ -130,7 +135,7 @@ object Stats {
     private const val MIN_SAMPLE_FOR_SHARE = 5
 
     fun weekStart(date: LocalDate): LocalDate =
-        date.minusDays((date.dayOfWeek.value - DayOfWeek.MONDAY.value).toLong())
+        date.minus(date.dayOfWeek.isoDayNumber - 1, DateTimeUnit.DAY)
 
     /**
      * Bar width and bar count for each period. Each shape lands between 6 and 12 bars,
@@ -164,10 +169,10 @@ object Stats {
         val bw = settings.userBodyweightKg
 
         // Rolling windows, inclusive of today, so the previous one is always the same length.
-        val windowStart = today.minusDays(period.days - 1L)
-        val prevStart = windowStart.minusDays(period.days.toLong())
+        val windowStart = today.minus((period.days - 1).toInt(), DateTimeUnit.DAY)
+        val prevStart = windowStart.minus(period.days.toInt(), DateTimeUnit.DAY)
 
-        val trainedDays = (strength.map { it.date } + cardio.map { it.date }).toSortedSet()
+        val trainedDays = (strength.map { it.date } + cardio.map { it.date }).distinct().sorted()
 
         val periodSets = strength.filter { it.date >= windowStart && it.date <= today }
         val prevSets = strength.filter { it.date >= prevStart && it.date < windowStart }
@@ -189,7 +194,7 @@ object Stats {
             hasData = true,
             period = period,
             trainingDaysThisPeriod = trainedDays.count { it >= windowStart && it <= today },
-            currentStreakDays = streak(trainedDays, today),
+            currentStreakDays = streak(trainedDays.toSet(), today),
             setsThisPeriod = periodSets.size,
             volumeThisPeriod = periodSets.sumOf { it.volume(unit, bw) },
             volumePrevPeriod = prevSets.sumOf { it.volume(unit, bw) },
@@ -290,16 +295,17 @@ object Stats {
     ): List<Triple<LocalDate, LocalDate, BucketUnit>> {
         val (bucketUnit, count) = chartShape(period)
         return (0 until count).map { index ->
-            val back = (count - 1 - index).toLong()
+            val back = count - 1 - index
             val start = when (bucketUnit) {
-                BucketUnit.DAY -> today.minusDays(back)
-                BucketUnit.WEEK -> weekStart(today).minusWeeks(back)
-                BucketUnit.MONTH -> today.withDayOfMonth(1).minusMonths(back)
+                BucketUnit.DAY -> today.minus(back, DateTimeUnit.DAY)
+                BucketUnit.WEEK -> weekStart(today).minus(back * 7, DateTimeUnit.DAY)
+                BucketUnit.MONTH ->
+                    LocalDate(today.year, today.monthNumber, 1).minus(back, DateTimeUnit.MONTH)
             }
             val end = when (bucketUnit) {
-                BucketUnit.DAY -> start.plusDays(1)
-                BucketUnit.WEEK -> start.plusWeeks(1)
-                BucketUnit.MONTH -> start.plusMonths(1)
+                BucketUnit.DAY -> start.plus(1, DateTimeUnit.DAY)
+                BucketUnit.WEEK -> start.plus(7, DateTimeUnit.DAY)
+                BucketUnit.MONTH -> start.plus(1, DateTimeUnit.MONTH)
             }
             Triple(start, end, bucketUnit)
         }
@@ -327,13 +333,13 @@ object Stats {
     private fun streak(trained: Set<LocalDate>, today: LocalDate): Int {
         var cursor = when {
             trained.contains(today) -> today
-            trained.contains(today.minusDays(1)) -> today.minusDays(1)
+            trained.contains(today.minus(1, DateTimeUnit.DAY)) -> today.minus(1, DateTimeUnit.DAY)
             else -> return 0
         }
         var count = 0
         while (trained.contains(cursor)) {
             count++
-            cursor = cursor.minusDays(1)
+            cursor = cursor.minus(1, DateTimeUnit.DAY)
         }
         return count
     }
@@ -349,7 +355,7 @@ object Stats {
         val byDay = food.groupBy { it.date }
         var cursor = when {
             byDay.containsKey(today) -> today
-            byDay.containsKey(today.minusDays(1)) -> today.minusDays(1)
+            byDay.containsKey(today.minus(1, DateTimeUnit.DAY)) -> today.minus(1, DateTimeUnit.DAY)
             else -> return 0
         }
         var count = 0
@@ -357,7 +363,7 @@ object Stats {
             val day = byDay[cursor] ?: break
             if (day.any { it.scale == FoodScale.INDULGENT }) break
             count++
-            cursor = cursor.minusDays(1)
+            cursor = cursor.minus(1, DateTimeUnit.DAY)
         }
         return count
     }
@@ -372,9 +378,11 @@ object Stats {
         // three late items, not one.
         val total = timed.sumOf { it.qty }
         if (total < MIN_SAMPLE_FOR_SHARE) return null
-        val zone = ZoneId.systemDefault()
+        val zone = TimeZone.currentSystemDefault()
         val late = timed
-            .filter { Instant.ofEpochMilli(it.loggedAt).atZone(zone).hour >= LATE_HOUR }
+            .filter {
+                Instant.fromEpochMilliseconds(it.loggedAt).toLocalDateTime(zone).hour >= LATE_HOUR
+            }
             .sumOf { it.qty }
         return (late * 100.0 / total).roundToInt()
     }
@@ -387,7 +395,7 @@ object Stats {
         windowDays: Long,
     ): List<PersonalRecord> = byExercise.values.mapNotNull { rows ->
         val best = rows.maxByOrNull { it.score(unit) } ?: return@mapNotNull null
-        if (ChronoUnit.DAYS.between(best.date, today) > windowDays) return@mapNotNull null
+        if (best.date.daysUntil(today) > windowDays) return@mapNotNull null
         // A single-session exercise is a baseline, not a record worth celebrating.
         if (rows.map { it.date }.distinct().size < 2) return@mapNotNull null
         PersonalRecord(
@@ -409,12 +417,12 @@ object Stats {
 
         val progressDay = Overload.lastProgressDate(sessions, settings.weightUnit)
             ?: return@mapNotNull null
-        val daysSince = ChronoUnit.DAYS.between(progressDay, today).toInt()
+        val daysSince = progressDay.daysUntil(today)
         if (daysSince < settings.overloadPeriodDays) return@mapNotNull null
 
         // Ask the engine what the next session should look like: advising "as of tomorrow"
         // makes today's sets count as history rather than as the session being planned.
-        val target = Overload.forStrength(sessions, settings, today.plusDays(1)).target
+        val target = Overload.forStrength(sessions, settings, today.plus(1, DateTimeUnit.DAY)).target
             ?: return@mapNotNull null
 
         DueItem(

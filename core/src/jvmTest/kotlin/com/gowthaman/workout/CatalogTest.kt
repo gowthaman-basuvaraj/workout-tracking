@@ -7,11 +7,13 @@ import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
+import com.gowthaman.workout.data.YearMonth
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
-import java.time.YearMonth
 
 class CatalogTest {
 
@@ -95,9 +97,9 @@ class CatalogTest {
 
     @Test
     fun `the food catalog remembers how an item was last logged`() {
-        val day = LocalDate.of(2026, 11, 17)
+        val day = LocalDate(2026, 11, 17)
         val entries = listOf(
-            FoodEntry("a", day.minusDays(2), "Coffee", Purpose.DRINK, FoodScale.HEALTHY, qty = 1, loggedAt = 1),
+            FoodEntry("a", day.minus(2, DateTimeUnit.DAY), "Coffee", Purpose.DRINK, FoodScale.HEALTHY, qty = 1, loggedAt = 1),
             FoodEntry("b", day, "Coffee", Purpose.DRINK, FoodScale.INDULGENT, qty = 2, loggedAt = 2),
         )
         val def = Catalog.rebuildFood(emptyList(), entries).single()
@@ -110,7 +112,7 @@ class CatalogTest {
 
     @Test
     fun `differently cased rows collapse into one catalog entry`() {
-        val day = LocalDate.of(2026, 11, 17)
+        val day = LocalDate(2026, 11, 17)
         val entries = listOf(
             FoodEntry("a", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1, loggedAt = 1),
             FoodEntry("b", day, "coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1, loggedAt = 2),
@@ -123,7 +125,7 @@ class CatalogTest {
 
     @Test
     fun `exercise rebuilding keeps strength and cardio apart`() {
-        val day = LocalDate.of(2026, 11, 17)
+        val day = LocalDate(2026, 11, 17)
         val sets = listOf(
             StrengthSet("a", day, "Bench Press", 1, 10, 40.0, Units.KG, false, loggedAt = 1),
         )
@@ -137,11 +139,11 @@ class CatalogTest {
 /** The format is the contract between the phone and the desktop, so it is pinned here. */
 class CsvFormatTest {
 
-    private val day: LocalDate = LocalDate.of(2026, 11, 17)
+    private val day: LocalDate = LocalDate(2026, 11, 17)
 
     @Test
     fun `month file names match what the app writes`() {
-        val month = YearMonth.of(2026, 3)
+        val month = YearMonth(2026, 3)
         assertEquals("strength-2026-03.csv", CsvFormat.strengthFile(month))
         assertEquals("cardio-2026-03.csv", CsvFormat.cardioFile(month))
         assertEquals("food-2026-03.csv", CsvFormat.foodFile(month))

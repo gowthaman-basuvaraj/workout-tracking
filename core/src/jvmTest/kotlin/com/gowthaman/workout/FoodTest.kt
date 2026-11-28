@@ -1,24 +1,29 @@
 package com.gowthaman.workout
 
-import com.gowthaman.workout.data.FoodEntry
+import com.gowthaman.workout.data.Catalog
 import com.gowthaman.workout.data.CsvFormat
 import com.gowthaman.workout.data.FoodDef
+import com.gowthaman.workout.data.FoodEntry
 import com.gowthaman.workout.data.FoodScale
 import com.gowthaman.workout.data.FoodTag
-import com.gowthaman.workout.data.Catalog
 import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Purpose
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.parseCsv
 import com.gowthaman.workout.data.summary
+import com.gowthaman.workout.data.today
 import com.gowthaman.workout.logic.Stats
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 
 class FoodModelTest {
 
@@ -52,7 +57,7 @@ class FoodModelTest {
 
     @Test
     fun `quantity only shows when there is more than one`() {
-        val one = FoodEntry("a", LocalDate.now(), "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1)
+        val one = FoodEntry("a", today(), "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1)
         val two = one.copy(qty = 2)
         assertEquals("Coffee", one.summary())
         assertEquals("2 x Coffee", two.summary())
@@ -117,7 +122,7 @@ class FoodTagTest {
 
 class FoodTagCsvTest {
 
-    private val day = LocalDate.of(2026, 11, 19)
+    private val day = LocalDate(2026, 11, 19)
 
     private fun entry(tags: Set<FoodTag>) = FoodEntry(
         id = "x1",
@@ -207,7 +212,7 @@ class FoodTagCsvTest {
     @Test
     fun `the catalog remembers the tags from the most recent entry`() {
         val entries = listOf(
-            entry(setOf(FoodTag.PLANTS)).copy(id = "a", date = day.minusDays(2), loggedAt = 1L),
+            entry(setOf(FoodTag.PLANTS)).copy(id = "a", date = day.minus(2, DateTimeUnit.DAY), loggedAt = 1L),
             entry(setOf(FoodTag.PLANTS, FoodTag.DAIRY)).copy(id = "b", loggedAt = 2L),
         )
         val rebuilt = Catalog.rebuildFood(emptyList(), entries)
@@ -232,7 +237,7 @@ class FoodTagCsvTest {
 
 class FoodStatsTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 17)
+    private val today: LocalDate = LocalDate(2026, 11, 17)
     private val settings = Settings(dashboardPeriod = Period.MONTH)
 
     private fun food(
@@ -252,8 +257,8 @@ class FoodStatsTest {
         scale = scale,
         tags = tags,
         qty = qty,
-        loggedAt = date.atTime(LocalTime.of(hour, 0))
-            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        loggedAt = LocalDateTime(date, LocalTime(hour, 0))
+            .toInstant(TimeZone.currentSystemDefault()).toEpochMilliseconds(),
     )
 
     @Test
@@ -270,7 +275,7 @@ class FoodStatsTest {
     fun `counts use quantity, not row count`() {
         val entries = listOf(
             food(today, "Coffee", qty = 2),
-            food(today.minusDays(1), "Coffee", qty = 1),
+            food(today.minus(1, DateTimeUnit.DAY), "Coffee", qty = 1),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, entries)
 
@@ -281,8 +286,8 @@ class FoodStatsTest {
     @Test
     fun `the food window follows the dashboard period`() {
         val entries = listOf(
-            food(today.minusDays(2), "Coffee"),
-            food(today.minusDays(60), "Coffee"),
+            food(today.minus(2, DateTimeUnit.DAY), "Coffee"),
+            food(today.minus(60, DateTimeUnit.DAY), "Coffee"),
         )
         fun countIn(period: Period) = Stats.build(
             emptyList(), emptyList(), settings.copy(dashboardPeriod = period), today, entries
@@ -327,9 +332,9 @@ class FoodStatsTest {
     fun `a clean run counts consecutive logged days with nothing indulgent`() {
         val entries = listOf(
             food(today, "Salad", scale = FoodScale.HEALTHY),
-            food(today.minusDays(1), "Toast", scale = FoodScale.EVERYDAY),
-            food(today.minusDays(2), "Cake", scale = FoodScale.INDULGENT),
-            food(today.minusDays(3), "Salad", scale = FoodScale.HEALTHY),
+            food(today.minus(1, DateTimeUnit.DAY), "Toast", scale = FoodScale.EVERYDAY),
+            food(today.minus(2, DateTimeUnit.DAY), "Cake", scale = FoodScale.INDULGENT),
+            food(today.minus(3, DateTimeUnit.DAY), "Salad", scale = FoodScale.HEALTHY),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, entries)
 
@@ -341,7 +346,7 @@ class FoodStatsTest {
         // Nothing logged yesterday: unknown is not the same as clean.
         val entries = listOf(
             food(today, "Salad", scale = FoodScale.HEALTHY),
-            food(today.minusDays(2), "Salad", scale = FoodScale.HEALTHY),
+            food(today.minus(2, DateTimeUnit.DAY), "Salad", scale = FoodScale.HEALTHY),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, entries)
 

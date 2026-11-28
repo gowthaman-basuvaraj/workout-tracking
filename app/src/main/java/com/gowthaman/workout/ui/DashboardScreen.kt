@@ -33,24 +33,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.Period
+import com.gowthaman.workout.data.SleepQuality
 import com.gowthaman.workout.data.agoLabel
+import com.gowthaman.workout.data.fmt
+import com.gowthaman.workout.data.formatDurationLong
+import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.monthLabel
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.tinyLabel
+import com.gowthaman.workout.data.today
 import com.gowthaman.workout.data.weekdayLabel
-import com.gowthaman.workout.data.FoodScale
-import com.gowthaman.workout.data.SleepQuality
-import com.gowthaman.workout.data.formatSleep
-import com.gowthaman.workout.data.Period
-import com.gowthaman.workout.data.fmt
-import com.gowthaman.workout.data.formatDurationLong
 import com.gowthaman.workout.logic.Bucket
 import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Dashboard
 import com.gowthaman.workout.logic.Stats
 import com.gowthaman.workout.logic.Summary
-import java.time.LocalDate
 import kotlin.math.roundToInt
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
 
 @Composable
 fun DashboardScreen(
@@ -777,7 +779,7 @@ private fun TotalsFooter(data: Dashboard) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val weeksTracked = data.firstDay?.let {
-            java.time.temporal.ChronoUnit.WEEKS.between(Stats.weekStart(it), LocalDate.now()) + 1
+            Stats.weekStart(it).daysUntil(today()) / 7 + 1
         } ?: 0
         if (weeksTracked > 1) {
             Text(

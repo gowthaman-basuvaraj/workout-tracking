@@ -1,6 +1,9 @@
 package com.gowthaman.workout.cli
 
-import java.time.LocalDate
+import com.gowthaman.workout.data.today
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 
 /** Thrown for anything the user can fix; main turns it into a message, not a stack trace. */
 class UserError(message: String, val hint: String? = null) : Exception(message)
@@ -89,8 +92,8 @@ class Args(raw: List<String>) {
     }
 
     /** `--date 2026-11-02`, or the shorthands people actually type. */
-    fun date(today: LocalDate = LocalDate.now()): LocalDate {
-        if (has("yesterday")) return today.minusDays(1)
+    fun date(today: LocalDate = today()): LocalDate {
+        if (has("yesterday")) return today.minus(1, DateTimeUnit.DAY)
         val raw = values["date"] ?: return today
         return runCatching { LocalDate.parse(raw) }.getOrNull()
             ?: throw UserError("--date expects YYYY-MM-DD, got \"$raw\".")

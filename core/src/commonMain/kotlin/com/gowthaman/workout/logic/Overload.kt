@@ -9,10 +9,10 @@ import com.gowthaman.workout.data.fmt
 import com.gowthaman.workout.data.formatDuration
 import com.gowthaman.workout.data.score
 import com.gowthaman.workout.data.weightIn
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
 
 /** What the app proposes you do today for one strength exercise. */
 data class StrengthTarget(
@@ -104,8 +104,8 @@ object Overload {
         val top = last.topSet(unit)
         val bestSet = past.flatMap { it.sets }.maxByOrNull { it.score(unit) }
         val progressDate = lastProgressDate(past, unit) ?: last.date
-        val daysSinceLast = ChronoUnit.DAYS.between(last.date, today).toInt()
-        val daysSinceProgress = ChronoUnit.DAYS.between(progressDate, today).toInt()
+        val daysSinceLast = last.date.daysUntil(today)
+        val daysSinceProgress = progressDate.daysUntil(today)
         val due = daysSinceProgress >= settings.overloadPeriodDays
         val daysUntil = (settings.overloadPeriodDays - daysSinceProgress).coerceAtLeast(0)
 
@@ -240,8 +240,8 @@ object Overload {
 
         val last = past.last()
         val progressDate = lastCardioProgressDate(past, unit) ?: last.date
-        val daysSinceLast = ChronoUnit.DAYS.between(last.date, today).toInt()
-        val daysSinceProgress = ChronoUnit.DAYS.between(progressDate, today).toInt()
+        val daysSinceLast = last.date.daysUntil(today)
+        val daysSinceProgress = progressDate.daysUntil(today)
         val due = daysSinceProgress >= settings.overloadPeriodDays
         val daysUntil = (settings.overloadPeriodDays - daysSinceProgress).coerceAtLeast(0)
 

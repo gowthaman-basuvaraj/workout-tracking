@@ -1,6 +1,7 @@
 package com.gowthaman.workout.data
 
-import java.time.LocalDate
+import kotlin.math.roundToInt
+import kotlinx.datetime.LocalDate
 
 /**
  * How a night went, on the same coarse three-point scale as everything else.
@@ -90,7 +91,7 @@ fun parseSleepDuration(raw: String): Int? {
     // 7.5 or 7,5 decimal hours
     text.replace(',', '.').toDoubleOrNull()?.let { hours ->
         if (hours <= 0 || hours > 24) return null
-        return Math.round(hours * 60).toInt()
+        return (hours * 60).roundToInt()
     }
     return null
 }

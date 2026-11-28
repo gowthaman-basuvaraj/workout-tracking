@@ -10,14 +10,16 @@ import com.gowthaman.workout.data.SleepQuality
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.logic.LogOrder
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class LogOrderTest {
 
-    private val today = LocalDate.of(2026, 11, 28)
+    private val today = LocalDate(2026, 11, 28)
 
     private fun food(day: LocalDate, n: Int = 1) = (1..n).map {
         FoodEntry("f$day-$it", day, "Coffee", Purpose.DRINK, FoodScale.EVERYDAY, qty = 1)
@@ -42,8 +44,8 @@ class LogOrderTest {
     fun `the thing touched on the most days comes first`() {
         val order = LogOrder.rank(
             today,
-            food = (0..20).flatMap { food(today.minusDays(it.toLong())) },
-            cardio = (0..2).map { run(today.minusDays(it.toLong())) },
+            food = (0..20).flatMap { food(today.minus(it.toInt(), DateTimeUnit.DAY)) },
+            cardio = (0..2).map { run(today.minus(it.toInt(), DateTimeUnit.DAY)) },
         )
         assertEquals(Kind.FOOD, order.first())
         assertTrue(order.indexOf(Kind.FOOD) < order.indexOf(Kind.CARDIO))
@@ -55,15 +57,15 @@ class LogOrderTest {
         // trip to the form, and should not outrank food touched on ten separate days.
         val order = LogOrder.rank(
             today,
-            strength = sets(today, n = 12) + sets(today.minusDays(1), n = 12),
-            food = (0..9).flatMap { food(today.minusDays(it.toLong())) },
+            strength = sets(today, n = 12) + sets(today.minus(1, DateTimeUnit.DAY), n = 12),
+            food = (0..9).flatMap { food(today.minus(it.toInt(), DateTimeUnit.DAY)) },
         )
         assertEquals(Kind.FOOD, order.first())
     }
 
     @Test
     fun `sleep sinks to the end once tonight is logged`() {
-        val slept = (0..25).map { night(today.minusDays(it.toLong())) }
+        val slept = (0..25).map { night(today.minus(it.toInt(), DateTimeUnit.DAY)) }
         val before = LogOrder.rank(today, sleep = slept.drop(1))   // nothing for today yet
         val after = LogOrder.rank(today, sleep = slept)            // today's night logged
 
@@ -73,7 +75,7 @@ class LogOrderTest {
 
     @Test
     fun `food logged today does not sink, because there is always more`() {
-        val order = LogOrder.rank(today, food = (0..20).flatMap { food(today.minusDays(it.toLong())) })
+        val order = LogOrder.rank(today, food = (0..20).flatMap { food(today.minus(it.toInt(), DateTimeUnit.DAY)) })
         assertEquals(Kind.FOOD, order.first())
     }
 
@@ -82,8 +84,8 @@ class LogOrderTest {
         // A month of cardio last quarter says nothing about what gets logged today.
         val order = LogOrder.rank(
             today,
-            cardio = (40..70).map { run(today.minusDays(it.toLong())) },
-            food = (0..4).flatMap { food(today.minusDays(it.toLong())) },
+            cardio = (40..70).map { run(today.minus(it.toInt(), DateTimeUnit.DAY)) },
+            food = (0..4).flatMap { food(today.minus(it.toInt(), DateTimeUnit.DAY)) },
         )
         assertTrue(order.indexOf(Kind.FOOD) < order.indexOf(Kind.CARDIO))
     }
@@ -91,7 +93,7 @@ class LogOrderTest {
     @Test
     fun `ties keep the default order, so the list does not shuffle at random`() {
         // Two kinds touched on exactly the same days must not swap places between taps.
-        val days = (0..5).map { today.minusDays(it.toLong()) }
+        val days = (0..5).map { today.minus(it.toInt(), DateTimeUnit.DAY) }
         val order = LogOrder.rank(
             today,
             food = days.flatMap { food(it) },

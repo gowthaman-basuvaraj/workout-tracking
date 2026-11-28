@@ -1,6 +1,6 @@
 package com.gowthaman.workout.data
 
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /**
  * Why something was eaten, rather than what it contained.

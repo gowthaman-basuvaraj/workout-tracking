@@ -12,11 +12,13 @@ import com.gowthaman.workout.data.StressWeight
 import com.gowthaman.workout.data.formatSleep
 import com.gowthaman.workout.data.parseSleepDuration
 import com.gowthaman.workout.logic.Stats
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class SleepDurationTest {
 
@@ -57,7 +59,7 @@ class SleepDurationTest {
 
 class SleepStatsTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 17)
+    private val today: LocalDate = LocalDate(2026, 11, 17)
     private val settings = Settings(dashboardPeriod = Period.MONTH)
 
     private fun night(date: LocalDate, minutes: Int, quality: SleepQuality = SleepQuality.OK) =
@@ -67,8 +69,8 @@ class SleepStatsTest {
     fun `the average is reported with how many nights it came from`() {
         val nights = listOf(
             night(today, 480),
-            night(today.minusDays(1), 420),
-            night(today.minusDays(2), 360),
+            night(today.minus(1, DateTimeUnit.DAY), 420),
+            night(today.minus(2, DateTimeUnit.DAY), 360),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, sleep = nights)
 
@@ -81,8 +83,8 @@ class SleepStatsTest {
     fun `short nights are counted at the six hour line`() {
         val nights = listOf(
             night(today, 359),               // under
-            night(today.minusDays(1), 360),  // exactly six hours is not short
-            night(today.minusDays(2), 300),  // under
+            night(today.minus(1, DateTimeUnit.DAY), 360),  // exactly six hours is not short
+            night(today.minus(2, DateTimeUnit.DAY), 300),  // under
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, sleep = nights)
         assertEquals(2, data.shortNights)
@@ -92,8 +94,8 @@ class SleepStatsTest {
     fun `the quality mix reports every bucket`() {
         val nights = listOf(
             night(today, 480, SleepQuality.GOOD),
-            night(today.minusDays(1), 420, SleepQuality.GOOD),
-            night(today.minusDays(2), 300, SleepQuality.POOR),
+            night(today.minus(1, DateTimeUnit.DAY), 420, SleepQuality.GOOD),
+            night(today.minus(2, DateTimeUnit.DAY), 300, SleepQuality.POOR),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, sleep = nights)
 
@@ -105,7 +107,7 @@ class SleepStatsTest {
     @Test
     fun `sleep bars average rather than total, so a missed night is not a dip`() {
         // Two full weeks of 8h, but one week has six nights logged instead of seven.
-        val full = (0..6).map { night(today.minusDays(it.toLong()), 480) }
+        val full = (0..6).map { night(today.minus(it.toInt(), DateTimeUnit.DAY), 480) }
         val data = Stats.build(emptyList(), emptyList(), settings, today, sleep = full)
         val latest = data.sleepBuckets.last()
 
@@ -114,7 +116,7 @@ class SleepStatsTest {
 
     @Test
     fun `the window applies to sleep too`() {
-        val nights = listOf(night(today.minusDays(2), 480), night(today.minusDays(60), 480))
+        val nights = listOf(night(today.minus(2, DateTimeUnit.DAY), 480), night(today.minus(60, DateTimeUnit.DAY), 480))
         fun loggedIn(period: Period) = Stats.build(
             emptyList(), emptyList(), settings.copy(dashboardPeriod = period), today, sleep = nights
         ).nightsLogged
@@ -132,7 +134,7 @@ class SleepStatsTest {
 
 class StressStatsTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 17)
+    private val today: LocalDate = LocalDate(2026, 11, 17)
     private val settings = Settings(dashboardPeriod = Period.MONTH)
 
     private fun event(
@@ -147,9 +149,9 @@ class StressStatsTest {
     fun `busters and enhancers are tallied separately`() {
         val events = listOf(
             event(today, "Deadline", StressDirection.ENHANCER, StressWeight.MAJOR),
-            event(today.minusDays(1), "Deadline", StressDirection.ENHANCER, StressWeight.MINOR),
+            event(today.minus(1, DateTimeUnit.DAY), "Deadline", StressDirection.ENHANCER, StressWeight.MINOR),
             event(today, "Walk", StressDirection.BUSTER, id = "w1"),
-            event(today.minusDays(3), "Walk", StressDirection.BUSTER, id = "w2"),
+            event(today.minus(3, DateTimeUnit.DAY), "Walk", StressDirection.BUSTER, id = "w2"),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, stress = events)
 
@@ -179,7 +181,7 @@ class StressStatsTest {
         val events = listOf(
             event(today, "Walk", StressDirection.BUSTER, id = "a"),
             event(today, "Walk", StressDirection.BUSTER, id = "b"),
-            event(today.minusDays(1), "Walk", StressDirection.BUSTER, id = "c"),
+            event(today.minus(1, DateTimeUnit.DAY), "Walk", StressDirection.BUSTER, id = "c"),
         )
         val data = Stats.build(emptyList(), emptyList(), settings, today, stress = events)
 
@@ -201,7 +203,7 @@ class StressStatsTest {
     @Test
     fun `the catalog remembers direction and weight from the newest entry`() {
         val events = listOf(
-            StressEvent("a", today.minusDays(2), "Gym", StressDirection.ENHANCER, StressWeight.MAJOR, loggedAt = 1),
+            StressEvent("a", today.minus(2, DateTimeUnit.DAY), "Gym", StressDirection.ENHANCER, StressWeight.MAJOR, loggedAt = 1),
             StressEvent("b", today, "Gym", StressDirection.BUSTER, StressWeight.MINOR, loggedAt = 2),
         )
         val def = Catalog.rebuildStress(emptyList(), events).single()

@@ -49,7 +49,7 @@ import com.gowthaman.workout.AppViewModel
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.lock.Biometrics
 import com.gowthaman.workout.data.Repo
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     DAY("day", "Day", Icons.Filled.DateRange),
@@ -196,7 +196,7 @@ fun Root(vm: AppViewModel) {
 
             composable("${Routes.LOG}?date={date}&kind={kind}&exercise={exercise}") { entry ->
                 val args = entry.arguments
-                val date = runCatching { LocalDate.parse(args?.getString("date")) }
+                val date = runCatching { LocalDate.parse(args?.getString("date").orEmpty()) }
                     .getOrDefault(vm.selectedDate.value)
                 val kind = runCatching { Kind.valueOf(args?.getString("kind") ?: Kind.STRENGTH.name) }
                     .getOrDefault(Kind.STRENGTH)

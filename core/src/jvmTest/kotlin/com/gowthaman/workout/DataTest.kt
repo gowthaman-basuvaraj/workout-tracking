@@ -2,9 +2,9 @@ package com.gowthaman.workout
 
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.Csv
+import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Settings
 import com.gowthaman.workout.data.StrengthSet
-import com.gowthaman.workout.data.Period
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.catalogKey
 import com.gowthaman.workout.data.fmt
@@ -12,13 +12,16 @@ import com.gowthaman.workout.data.formatDuration
 import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.parseCsv
 import com.gowthaman.workout.data.toSessions
+import com.gowthaman.workout.data.today
 import com.gowthaman.workout.data.volume
 import com.gowthaman.workout.logic.BucketUnit
 import com.gowthaman.workout.logic.Stats
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class CsvTest {
 
@@ -99,7 +102,7 @@ class FormatTest {
     @Test
     fun `load labels distinguish bodyweight from added load`() {
         fun set(weight: Double, bodyweight: Boolean) =
-            StrengthSet("x", LocalDate.now(), "Dip", 1, 8, weight, Units.KG, bodyweight)
+            StrengthSet("x", today(), "Dip", 1, 8, weight, Units.KG, bodyweight)
 
         assertEquals("BW", set(0.0, true).loadLabel(Units.KG))
         assertEquals("BW +10 kg", set(10.0, true).loadLabel(Units.KG))
@@ -113,14 +116,14 @@ class FormatTest {
 
     @Test
     fun `pounds are shown in kilograms when the unit changes`() {
-        val set = StrengthSet("x", LocalDate.now(), "Bench", 1, 8, 220.0, Units.LB, false)
+        val set = StrengthSet("x", today(), "Bench", 1, 8, 220.0, Units.LB, false)
         assertEquals("99.8 kg", set.loadLabel(Units.KG).let { it })
     }
 }
 
 class SessionTest {
 
-    private val day: LocalDate = LocalDate.of(2026, 11, 12)
+    private val day: LocalDate = LocalDate(2026, 11, 12)
 
     private fun set(reps: Int, weight: Double, setNo: Int, bodyweight: Boolean = false) =
         StrengthSet("s$setNo", day, "Squat", setNo, reps, weight, Units.KG, bodyweight)
@@ -160,7 +163,7 @@ class SessionTest {
 
 class StatsTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 12) // a Thursday
+    private val today: LocalDate = LocalDate(2026, 11, 12) // a Thursday
     private val settings = Settings(overloadPeriodDays = 7, weightUnit = Units.KG)
 
     private fun set(date: LocalDate, exercise: String, reps: Int, weight: Double, id: String) =
@@ -168,9 +171,9 @@ class StatsTest {
 
     @Test
     fun `weeks start on monday`() {
-        assertEquals(LocalDate.of(2026, 11, 9), Stats.weekStart(today))
-        assertEquals(LocalDate.of(2026, 11, 9), Stats.weekStart(LocalDate.of(2026, 11, 9)))
-        assertEquals(LocalDate.of(2026, 11, 9), Stats.weekStart(LocalDate.of(2026, 11, 15)))
+        assertEquals(LocalDate(2026, 11, 9), Stats.weekStart(today))
+        assertEquals(LocalDate(2026, 11, 9), Stats.weekStart(LocalDate(2026, 11, 9)))
+        assertEquals(LocalDate(2026, 11, 9), Stats.weekStart(LocalDate(2026, 11, 15)))
     }
 
     @Test
@@ -183,10 +186,10 @@ class StatsTest {
     fun `streak counts consecutive days back from today`() {
         val sets = listOf(
             set(today, "Squat", 5, 100.0, "a"),
-            set(today.minusDays(1), "Squat", 5, 100.0, "b"),
-            set(today.minusDays(2), "Squat", 5, 100.0, "c"),
+            set(today.minus(1, DateTimeUnit.DAY), "Squat", 5, 100.0, "b"),
+            set(today.minus(2, DateTimeUnit.DAY), "Squat", 5, 100.0, "c"),
             // gap on day 3
-            set(today.minusDays(4), "Squat", 5, 100.0, "d"),
+            set(today.minus(4, DateTimeUnit.DAY), "Squat", 5, 100.0, "d"),
         )
         assertEquals(3, Stats.build(sets, emptyList(), settings, today).currentStreakDays)
     }
@@ -194,8 +197,8 @@ class StatsTest {
     @Test
     fun `a rest day today keeps yesterday's streak alive`() {
         val sets = listOf(
-            set(today.minusDays(1), "Squat", 5, 100.0, "a"),
-            set(today.minusDays(2), "Squat", 5, 100.0, "b"),
+            set(today.minus(1, DateTimeUnit.DAY), "Squat", 5, 100.0, "a"),
+            set(today.minus(2, DateTimeUnit.DAY), "Squat", 5, 100.0, "b"),
         )
         assertEquals(2, Stats.build(sets, emptyList(), settings, today).currentStreakDays)
     }
@@ -209,9 +212,9 @@ class StatsTest {
     @Test
     fun `period figures cover a rolling window and compare to the one before it`() {
         val sets = listOf(
-            set(today.minusDays(3), "Squat", 10, 100.0, "a"),   // in window:  1000
-            set(today.minusDays(29), "Squat", 10, 50.0, "b"),   // in window:   500
-            set(today.minusDays(31), "Squat", 10, 20.0, "c"),   // previous:    200
+            set(today.minus(3, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),   // in window:  1000
+            set(today.minus(29, DateTimeUnit.DAY), "Squat", 10, 50.0, "b"),   // in window:   500
+            set(today.minus(31, DateTimeUnit.DAY), "Squat", 10, 20.0, "c"),   // previous:    200
         )
         val data = Stats.build(sets, emptyList(), settings, today)
 
@@ -223,8 +226,8 @@ class StatsTest {
 
     @Test
     fun `the window is inclusive of exactly period days`() {
-        val onEdge = listOf(set(today.minusDays(29), "Squat", 10, 100.0, "a"))
-        val justOutside = listOf(set(today.minusDays(30), "Squat", 10, 100.0, "a"))
+        val onEdge = listOf(set(today.minus(29, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"))
+        val justOutside = listOf(set(today.minus(30, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"))
 
         assertEquals(1, Stats.build(onEdge, emptyList(), settings, today).setsThisPeriod)
         assertEquals(0, Stats.build(justOutside, emptyList(), settings, today).setsThisPeriod)
@@ -233,9 +236,9 @@ class StatsTest {
     @Test
     fun `changing the period changes what is counted`() {
         val sets = listOf(
-            set(today.minusDays(2), "Squat", 10, 100.0, "a"),
-            set(today.minusDays(60), "Squat", 10, 100.0, "b"),
-            set(today.minusDays(200), "Squat", 10, 100.0, "c"),
+            set(today.minus(2, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),
+            set(today.minus(60, DateTimeUnit.DAY), "Squat", 10, 100.0, "b"),
+            set(today.minus(200, DateTimeUnit.DAY), "Squat", 10, 100.0, "c"),
         )
         fun setsIn(period: Period) = Stats
             .build(sets, emptyList(), settings.copy(dashboardPeriod = period), today)
@@ -259,7 +262,7 @@ class StatsTest {
     fun `month buckets are whole weeks, oldest first`() {
         val sets = listOf(
             set(today, "Squat", 10, 100.0, "a"),              // this week: 1000
-            set(today.minusDays(7), "Squat", 10, 50.0, "b"),  // last week:  500
+            set(today.minus(7, DateTimeUnit.DAY), "Squat", 10, 50.0, "b"),  // last week:  500
         )
         val data = Stats.build(sets, emptyList(), settings, today)
 
@@ -281,7 +284,7 @@ class StatsTest {
         assertEquals(7, data.buckets.size)
         assertEquals(BucketUnit.DAY, data.buckets.first().unit)
         assertEquals(today, data.buckets.last().start)
-        assertEquals(today.minusDays(6), data.buckets.first().start)
+        assertEquals(today.minus(6, DateTimeUnit.DAY), data.buckets.first().start)
         assertEquals(1000.0, data.buckets.last().volume, 0.001)
     }
 
@@ -295,15 +298,15 @@ class StatsTest {
         assertEquals(12, data.buckets.size)
         assertEquals(BucketUnit.MONTH, data.buckets.first().unit)
         assertTrue(data.buckets.all { it.start.dayOfMonth == 1 })
-        assertEquals(today.withDayOfMonth(1), data.buckets.last().start)
+        assertEquals(LocalDate(today.year, today.monthNumber, 1), data.buckets.last().start)
     }
 
     @Test
     fun `most logged is scoped to the selected window`() {
         val sets = listOf(
-            set(today.minusDays(2), "Squat", 10, 100.0, "a"),
-            set(today.minusDays(200), "Bench", 10, 100.0, "b"),
-            set(today.minusDays(201), "Bench", 10, 100.0, "c"),
+            set(today.minus(2, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),
+            set(today.minus(200, DateTimeUnit.DAY), "Bench", 10, 100.0, "b"),
+            set(today.minus(201, DateTimeUnit.DAY), "Bench", 10, 100.0, "c"),
         )
         val month = Stats.build(sets, emptyList(), settings, today)
         val year = Stats.build(
@@ -317,9 +320,9 @@ class StatsTest {
     @Test
     fun `an exercise with no step up for longer than the window shows as due`() {
         val sets = listOf(
-            set(today.minusDays(21), "Squat", 10, 100.0, "a"),
-            set(today.minusDays(14), "Squat", 10, 100.0, "b"),
-            set(today.minusDays(2), "Bench", 10, 60.0, "c"),
+            set(today.minus(21, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),
+            set(today.minus(14, DateTimeUnit.DAY), "Squat", 10, 100.0, "b"),
+            set(today.minus(2, DateTimeUnit.DAY), "Bench", 10, 60.0, "c"),
         )
         val data = Stats.build(sets, emptyList(), settings, today)
 
@@ -331,28 +334,28 @@ class StatsTest {
 
     @Test
     fun `a single session is a baseline rather than a record`() {
-        val sets = listOf(set(today.minusDays(1), "Squat", 10, 100.0, "a"))
+        val sets = listOf(set(today.minus(1, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"))
         assertTrue(Stats.build(sets, emptyList(), settings, today).recentPrs.isEmpty())
     }
 
     @Test
     fun `beating an old best counts as a recent record`() {
         val sets = listOf(
-            set(today.minusDays(40), "Squat", 10, 100.0, "a"),
-            set(today.minusDays(3), "Squat", 10, 110.0, "b"),
+            set(today.minus(40, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),
+            set(today.minus(3, DateTimeUnit.DAY), "Squat", 10, 110.0, "b"),
         )
         val prs = Stats.build(sets, emptyList(), settings, today).recentPrs
 
         assertEquals(1, prs.size)
         assertEquals("Squat", prs.single().exercise)
-        assertEquals(today.minusDays(3), prs.single().date)
+        assertEquals(today.minus(3, DateTimeUnit.DAY), prs.single().date)
     }
 
     @Test
     fun `the records window follows the selected period`() {
         val sets = listOf(
-            set(today.minusDays(300), "Squat", 10, 100.0, "a"),
-            set(today.minusDays(50), "Squat", 10, 110.0, "b"),  // best, but 50 days back
+            set(today.minus(300, DateTimeUnit.DAY), "Squat", 10, 100.0, "a"),
+            set(today.minus(50, DateTimeUnit.DAY), "Squat", 10, 110.0, "b"),  // best, but 50 days back
         )
         fun prs(period: Period) = Stats
             .build(sets, emptyList(), settings.copy(dashboardPeriod = period), today)

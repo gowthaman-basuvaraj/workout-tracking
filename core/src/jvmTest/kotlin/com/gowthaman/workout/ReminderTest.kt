@@ -8,8 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.DayOfWeek
-import java.time.LocalDateTime
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDateTime
 
 class ReminderTest {
 
@@ -19,7 +19,7 @@ class ReminderTest {
     )
 
     /** Monday 23 Nov 2026. */
-    private val monMorning = LocalDateTime.of(2026, 11, 23, 9, 0)
+    private val monMorning = LocalDateTime(2026, 11, 23, 9, 0)
 
     private fun reminder(
         hour: Int = 20,
@@ -41,7 +41,7 @@ class ReminderTest {
     @Test
     fun `later the same day is the next trigger`() {
         assertEquals(
-            LocalDateTime.of(2026, 11, 23, 20, 0),
+            LocalDateTime(2026, 11, 23, 20, 0),
             Reminders.nextTrigger(reminder(), monMorning),
         )
     }
@@ -49,8 +49,8 @@ class ReminderTest {
     @Test
     fun `a time already past today rolls to the next chosen day`() {
         assertEquals(
-            LocalDateTime.of(2026, 11, 24, 20, 0),
-            Reminders.nextTrigger(reminder(), LocalDateTime.of(2026, 11, 23, 21, 30)),
+            LocalDateTime(2026, 11, 24, 20, 0),
+            Reminders.nextTrigger(reminder(), LocalDateTime(2026, 11, 23, 21, 30)),
         )
     }
 
@@ -59,15 +59,15 @@ class ReminderTest {
         // Called from inside the alarm it just fired. Returning the same instant would
         // re-arm for a time that has already passed, and the reminder would stop.
         assertEquals(
-            LocalDateTime.of(2026, 11, 24, 20, 0),
-            Reminders.nextTrigger(reminder(), LocalDateTime.of(2026, 11, 23, 20, 0)),
+            LocalDateTime(2026, 11, 24, 20, 0),
+            Reminders.nextTrigger(reminder(), LocalDateTime(2026, 11, 23, 20, 0)),
         )
     }
 
     @Test
     fun `a weekend-only reminder skips the week`() {
         assertEquals(
-            LocalDateTime.of(2026, 11, 28, 10, 30),
+            LocalDateTime(2026, 11, 28, 10, 30),
             Reminders.nextTrigger(
                 reminder(hour = 10, minute = 30, days = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)),
                 monMorning,
@@ -79,7 +79,7 @@ class ReminderTest {
     fun `one day a week, asked an hour late, comes back round next week`() {
         // The case that needs an eighth day of lookahead.
         assertEquals(
-            LocalDateTime.of(2026, 11, 30, 8, 0),
+            LocalDateTime(2026, 11, 30, 8, 0),
             Reminders.nextTrigger(reminder(hour = 8, days = setOf(DayOfWeek.MONDAY)), monMorning),
         )
     }
@@ -89,12 +89,12 @@ class ReminderTest {
         val breakfast = reminder(hour = 8, minute = 0, label = "Breakfast", id = 1)
         val lunch = reminder(hour = 13, minute = 0, label = "Lunch", id = 2)
         val dinner = reminder(hour = 20, minute = 0, label = "Dinner", id = 3)
-        val noon = LocalDateTime.of(2026, 11, 23, 12, 0)
+        val noon = LocalDateTime(2026, 11, 23, 12, 0)
 
         // Breakfast has gone for today; the other two have not.
-        assertEquals(LocalDateTime.of(2026, 11, 24, 8, 0), Reminders.nextTrigger(breakfast, noon))
-        assertEquals(LocalDateTime.of(2026, 11, 23, 13, 0), Reminders.nextTrigger(lunch, noon))
-        assertEquals(LocalDateTime.of(2026, 11, 23, 20, 0), Reminders.nextTrigger(dinner, noon))
+        assertEquals(LocalDateTime(2026, 11, 24, 8, 0), Reminders.nextTrigger(breakfast, noon))
+        assertEquals(LocalDateTime(2026, 11, 23, 13, 0), Reminders.nextTrigger(lunch, noon))
+        assertEquals(LocalDateTime(2026, 11, 23, 20, 0), Reminders.nextTrigger(dinner, noon))
     }
 
     // -------------------------------------------------------------- settings

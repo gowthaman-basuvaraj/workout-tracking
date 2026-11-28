@@ -275,7 +275,7 @@ Requires JDK 17 and the Android SDK (platform 36). `local.properties` already po
 ```bash
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :cli:jar               # cli/build/libs/uncomplicated.jar
-./gradlew :core:test             # the shared logic: overload, CSV, catalog, stats
+./gradlew :core:jvmTest          # the shared logic: overload, CSV, catalog, stats
 ./gradlew installDebug           # to a connected device or emulator
 ```
 
@@ -363,12 +363,24 @@ download URL and `commandlinetools-linux-` to the matching archive.
 
 ## Layout
 
-Three Gradle modules. `:core` is plain JVM Kotlin with no Android on the classpath at all,
-which is what lets the phone and the laptop run the same code instead of two copies that
-drift apart.
+Three Gradle modules. `:core` is Kotlin Multiplatform with no Android on the classpath at
+all, which is what lets the phone and the laptop run the same code instead of two copies
+that drift apart. It builds for the JVM today; the sources are `commonMain`, so an iOS
+target is a line in `core/build.gradle.kts` rather than a rewrite.
+
+The rule that keeps it honest is checked by the compiler, not by discipline. A JVM target
+alone cannot catch a stray `java.time` import — `java.*` is on its classpath. So the build
+also compiles `:core` for a **native** target, chosen by whichever host is building
+(`mingwX64` on Windows, `linuxX64` elsewhere, iOS on a Mac). Native has no JVM runtime, so
+anything reaching for `java.*` fails to compile there. That is the whole guard: the day
+someone adds `java.util.UUID` to shared code, the build says so.
+
+Dates come from `kotlinx-datetime`. The handful of things the JVM gave away free and
+multiplatform does not — `YearMonth`, a random row id, zero-padding, month names — live in
+`core/data/Dates.kt`, a few lines each rather than a dependency.
 
 ```
-core/     pure JVM — shared by :app and :cli
+core/     Kotlin Multiplatform (commonMain) — shared by :app and :cli
   data/
     Models.kt       StrengthSet, CardioEntry, sessions, units, formatting
     Food.kt         FoodEntry, purpose, the healthy-to-indulgent scale
@@ -379,11 +391,12 @@ core/     pure JVM — shared by :app and :cli
     CsvFormat.kt    file names, headers, row <-> text, settings. The format, no I/O
     Catalog.kt      name matching, canonical spelling, catalog rebuilding
     DateFormat.kt   "3 days ago" and friends
+    Dates.kt        today(), YearMonth, row ids, padding — the java.* replacements
   logic/
     Overload.kt     the progression engine
     Summary.kt      the shareable text, shared by the share sheet and the CLI
     Stats.kt        dashboard aggregates
-  114 unit tests
+  166 unit tests (jvmTest)
 
 app/      Android
   data/CsvStore.kt  folder I/O through the Storage Access Framework
@@ -402,8 +415,9 @@ Design notes worth knowing if you change things:
   Switching kg/lb never rewrites history.
 - **Everything is in memory.** A few years of training is well under a megabyte, so the repo
   holds the full data set and rewrites only the months a change touched.
-- **Nothing in `:core` may import `android.*`.** That rule is the whole reason the CLI
-  exists without a second implementation of anything.
+- **Nothing in `:core` may import `android.*` or `java.*`.** The first rule is why the CLI
+  exists without a second implementation of anything; the second is why an iOS target stays
+  one line away. The native canary target enforces the second one at compile time.
 - **Estimated 1RM is Epley** (`weight × (1 + reps/30)`), used to compare sets and detect
   improvement. Unweighted sets compare on reps instead.
 - **Food counts are quantity-weighted.** `qty` means occurrences, never portions: two

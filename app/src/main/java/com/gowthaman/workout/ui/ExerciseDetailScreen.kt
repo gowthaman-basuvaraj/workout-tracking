@@ -53,11 +53,13 @@ import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.score
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.tinyLabel
+import com.gowthaman.workout.data.today
 import com.gowthaman.workout.data.volume
 import com.gowthaman.workout.logic.Overload
 import com.gowthaman.workout.sessionsOf
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 
 @Composable
 fun ExerciseDetailScreen(
@@ -198,12 +200,12 @@ private fun StrengthDetail(
     }
 
     val unit = settings.weightUnit
-    val today = LocalDate.now()
+    val today = today()
     val allSets = history.flatMap { it.sets }
     val best = allSets.maxByOrNull { it.score(unit) }
     val advice = remember(history, settings) {
         // Advise for the next session rather than for today, so today's own sets count as history.
-        Overload.forStrength(history, settings, today.plusDays(1))
+        Overload.forStrength(history, settings, today.plus(1, DateTimeUnit.DAY))
     }
 
     LazyColumn(
@@ -395,9 +397,9 @@ private fun CardioDetail(
     }
 
     val unit = settings.distanceUnit
-    val today = LocalDate.now()
+    val today = today()
     val advice = remember(history, settings) {
-        Overload.forCardio(history, settings, today.plusDays(1))
+        Overload.forCardio(history, settings, today.plus(1, DateTimeUnit.DAY))
     }
     val totalSec = history.sumOf { it.durationSec }
     val totalDist = history.sumOf { Units.distance(it.distance, it.distUnit, unit) }

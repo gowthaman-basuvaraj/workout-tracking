@@ -1,7 +1,6 @@
 package com.gowthaman.workout.data
 
-import java.time.LocalDate
-import java.util.Locale
+import kotlinx.datetime.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -100,7 +99,7 @@ data class ExerciseDef(
 )
 
 /** Catalog lookups are case/whitespace insensitive so "Bench Press" and "bench press" stay one exercise. */
-fun catalogKey(name: String): String = name.trim().lowercase(Locale.ROOT)
+fun catalogKey(name: String): String = name.trim().lowercase()
 
 fun StrengthSet.weightIn(unit: String): Double = Units.weight(weight, this.unit, unit)
 
@@ -171,7 +170,7 @@ fun List<StrengthSet>.toSessions(): List<ExerciseSession> =
 /** Compact number text: 40.0 -> "40", 42.5 -> "42.5", 1440.0 at 0 decimals -> "1440". */
 fun Double.fmt(decimals: Int = 1): String {
     if (!isFinite()) return "0"
-    val rounded = String.format(Locale.US, "%.${decimals}f", this)
+    val rounded = roundedTo(decimals)
     // Only trim inside a fraction: "1440" must not become "144".
     if (!rounded.contains('.')) return rounded
     return rounded.trimEnd('0').trimEnd('.').ifEmpty { "0" }
@@ -184,8 +183,7 @@ fun formatDuration(totalSec: Int): String {
     val h = s / 3600
     val m = (s % 3600) / 60
     val sec = s % 60
-    return if (h > 0) String.format(Locale.US, "%d:%02d:%02d", h, m, sec)
-    else String.format(Locale.US, "%d:%02d", m, sec)
+    return if (h > 0) "$h:${m.pad2()}:${sec.pad2()}" else "$m:${sec.pad2()}"
 }
 
 /** "1h 05m" / "42m" — for totals rather than per-session times. */
@@ -193,5 +191,5 @@ fun formatDurationLong(totalSec: Int): String {
     val s = totalSec.coerceAtLeast(0)
     val h = s / 3600
     val m = ((s % 3600) / 60.0).roundToInt()
-    return if (h > 0) String.format(Locale.US, "%dh %02dm", h, m) else "${m}m"
+    return if (h > 0) "${h}h ${m.pad2()}m" else "${m}m"
 }

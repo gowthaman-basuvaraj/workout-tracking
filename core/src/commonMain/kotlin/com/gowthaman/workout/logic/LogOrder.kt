@@ -6,7 +6,9 @@ import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.StressEvent
-import java.time.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 
 /**
  * What order to offer the five kinds of thing in.
@@ -41,7 +43,7 @@ object LogOrder {
         sleep: List<SleepNight> = emptyList(),
         stress: List<StressEvent> = emptyList(),
     ): List<Kind> {
-        val from = today.minusDays(WINDOW_DAYS - 1)
+        val from = today.minus((WINDOW_DAYS - 1).toInt(), DateTimeUnit.DAY)
         fun <T> days(rows: List<T>, dateOf: (T) -> LocalDate): Int =
             rows.map(dateOf).filter { it in from..today }.distinct().size
 

@@ -39,17 +39,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gowthaman.workout.AppViewModel
+import com.gowthaman.workout.R
 import com.gowthaman.workout.data.CardioEntry
 import com.gowthaman.workout.data.ExerciseSession
-import androidx.compose.ui.res.painterResource
-import com.gowthaman.workout.R
 import com.gowthaman.workout.data.FoodEntry
-import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.FoodScale
+import com.gowthaman.workout.data.FoodTag
 import com.gowthaman.workout.data.Kind
 import com.gowthaman.workout.data.SleepNight
 import com.gowthaman.workout.data.StrengthSet
@@ -64,7 +64,8 @@ import com.gowthaman.workout.data.loadLabel
 import com.gowthaman.workout.data.relativeLabel
 import com.gowthaman.workout.data.shortLabel
 import com.gowthaman.workout.data.summary
-import java.time.LocalDate
+import com.gowthaman.workout.data.today
+import kotlinx.datetime.LocalDate
 
 @Composable
 fun DayScreen(
@@ -77,7 +78,7 @@ fun DayScreen(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val guideSeen by vm.guideSeen.collectAsStateWithLifecycle()
     val kindOrder by vm.kindOrder.collectAsStateWithLifecycle()
-    val today = LocalDate.now()
+    val today = today()
 
     var confirmDelete by remember { mutableStateOf<ExerciseSession?>(null) }
 
@@ -289,10 +290,10 @@ private fun DateNavigator(
                     DatePickerDialog(
                         context,
                         { _, year, month, dayOfMonth ->
-                            onPick(LocalDate.of(year, month + 1, dayOfMonth))
+                            onPick(LocalDate(year, month + 1, dayOfMonth))
                         },
                         date.year,
-                        date.monthValue - 1,
+                        date.monthNumber - 1,
                         date.dayOfMonth,
                     ).show()
                 }

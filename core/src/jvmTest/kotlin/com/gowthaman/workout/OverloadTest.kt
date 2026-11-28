@@ -6,16 +6,19 @@ import com.gowthaman.workout.data.StrengthSet
 import com.gowthaman.workout.data.Units
 import com.gowthaman.workout.data.toSessions
 import com.gowthaman.workout.logic.Overload
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalDate
 
 class OverloadTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 11, 12)
+    private val today: LocalDate = LocalDate(2026, 11, 12)
     private val settings = Settings(
         overloadPeriodDays = 7,
         weightUnit = Units.KG,
@@ -54,7 +57,7 @@ class OverloadTest {
     @Test
     fun `inside the window it asks you to repeat the last session`() {
         // Progressed 3 days ago, window is 7 days — not due yet.
-        val history = sets(today.minusDays(3), reps = 9, weight = 40.0).toSessions()
+        val history = sets(today.minus(3, DateTimeUnit.DAY), reps = 9, weight = 40.0).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
 
@@ -68,7 +71,7 @@ class OverloadTest {
 
     @Test
     fun `window elapsed below the rep ceiling adds one rep`() {
-        val history = sets(today.minusDays(7), reps = 9, weight = 40.0).toSessions()
+        val history = sets(today.minus(7, DateTimeUnit.DAY), reps = 9, weight = 40.0).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
 
@@ -80,7 +83,7 @@ class OverloadTest {
 
     @Test
     fun `at the top of the rep range the weight goes up and reps reset`() {
-        val history = sets(today.minusDays(9), reps = 12, weight = 40.0).toSessions()
+        val history = sets(today.minus(9, DateTimeUnit.DAY), reps = 12, weight = 40.0).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
 
@@ -93,9 +96,9 @@ class OverloadTest {
     fun `the clock runs from the last improvement, not the last session`() {
         // Improved 20 days ago, then repeated the same numbers twice. Still overdue.
         val history = (
-            sets(today.minusDays(20), reps = 10, weight = 40.0) +
-                sets(today.minusDays(13), reps = 10, weight = 40.0) +
-                sets(today.minusDays(6), reps = 10, weight = 40.0)
+            sets(today.minus(20, DateTimeUnit.DAY), reps = 10, weight = 40.0) +
+                sets(today.minus(13, DateTimeUnit.DAY), reps = 10, weight = 40.0) +
+                sets(today.minus(6, DateTimeUnit.DAY), reps = 10, weight = 40.0)
             ).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
@@ -109,8 +112,8 @@ class OverloadTest {
     @Test
     fun `a genuine improvement resets the clock`() {
         val history = (
-            sets(today.minusDays(20), reps = 10, weight = 40.0) +
-                sets(today.minusDays(2), reps = 11, weight = 40.0)
+            sets(today.minus(20, DateTimeUnit.DAY), reps = 10, weight = 40.0) +
+                sets(today.minus(2, DateTimeUnit.DAY), reps = 11, weight = 40.0)
             ).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
@@ -123,7 +126,7 @@ class OverloadTest {
     @Test
     fun `bodyweight sets gain reps until the ceiling`() {
         val history = sets(
-            today.minusDays(8), reps = 10, weight = 0.0, bodyweight = true
+            today.minus(8, DateTimeUnit.DAY), reps = 10, weight = 0.0, bodyweight = true
         ).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
@@ -138,7 +141,7 @@ class OverloadTest {
     @Test
     fun `past the bodyweight ceiling it adds load instead of reps`() {
         val history = sets(
-            today.minusDays(8), reps = 16, weight = 0.0, bodyweight = true
+            today.minus(8, DateTimeUnit.DAY), reps = 16, weight = 0.0, bodyweight = true
         ).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
@@ -152,7 +155,7 @@ class OverloadTest {
 
     @Test
     fun `a longer overload period delays the step up`() {
-        val history = sets(today.minusDays(10), reps = 9, weight = 40.0).toSessions()
+        val history = sets(today.minus(10, DateTimeUnit.DAY), reps = 9, weight = 40.0).toSessions()
 
         val weekly = Overload.forStrength(history, settings, today)
         val monthly = Overload.forStrength(history, settings.copy(overloadPeriodDays = 30), today)
@@ -167,8 +170,8 @@ class OverloadTest {
     fun `sessions after the planning date are ignored`() {
         // Planning Monday while Wednesday is already logged must not look into the future.
         val history = (
-            sets(today.minusDays(10), reps = 9, weight = 40.0) +
-                sets(today.plusDays(2), reps = 20, weight = 80.0)
+            sets(today.minus(10, DateTimeUnit.DAY), reps = 9, weight = 40.0) +
+                sets(today.plus(2, DateTimeUnit.DAY), reps = 20, weight = 80.0)
             ).toSessions()
 
         val advice = Overload.forStrength(history, settings, today)
@@ -180,9 +183,9 @@ class OverloadTest {
     @Test
     fun `the top set drives the suggestion when sets differ`() {
         val mixed = listOf(
-            StrengthSet("a", today.minusDays(8), "Row", 1, 8, 50.0, Units.KG, false),
-            StrengthSet("b", today.minusDays(8), "Row", 2, 10, 60.0, Units.KG, false),
-            StrengthSet("c", today.minusDays(8), "Row", 3, 6, 55.0, Units.KG, false),
+            StrengthSet("a", today.minus(8, DateTimeUnit.DAY), "Row", 1, 8, 50.0, Units.KG, false),
+            StrengthSet("b", today.minus(8, DateTimeUnit.DAY), "Row", 2, 10, 60.0, Units.KG, false),
+            StrengthSet("c", today.minus(8, DateTimeUnit.DAY), "Row", 3, 6, 55.0, Units.KG, false),
         ).toSessions()
 
         val advice = Overload.forStrength(mixed, settings, today)
@@ -196,7 +199,7 @@ class OverloadTest {
     fun `pounds history is suggested back in pounds`() {
         val lb = settings.copy(weightUnit = Units.LB, weightIncrement = 5.0)
         val history = listOf(
-            StrengthSet("a", today.minusDays(8), "Bench", 1, 12, 100.0, Units.LB, false),
+            StrengthSet("a", today.minus(8, DateTimeUnit.DAY), "Bench", 1, 12, 100.0, Units.LB, false),
         ).toSessions()
 
         val advice = Overload.forStrength(history, lb, today)
@@ -216,7 +219,7 @@ class OverloadTest {
     @Test
     fun `cardio inside the window repeats the last session`() {
         val advice = Overload.forCardio(
-            listOf(cardio(today.minusDays(2), 1800, 5.0)), settings, today
+            listOf(cardio(today.minus(2, DateTimeUnit.DAY), 1800, 5.0)), settings, today
         )
 
         assertFalse(advice.isOverload)
@@ -227,7 +230,7 @@ class OverloadTest {
     @Test
     fun `cardio with distance gets a distance bump`() {
         val advice = Overload.forCardio(
-            listOf(cardio(today.minusDays(8), 1800, 5.0)), settings, today
+            listOf(cardio(today.minus(8, DateTimeUnit.DAY), 1800, 5.0)), settings, today
         )
 
         assertTrue(advice.isOverload)
@@ -238,7 +241,7 @@ class OverloadTest {
     @Test
     fun `cardio without distance gets a duration bump`() {
         val advice = Overload.forCardio(
-            listOf(cardio(today.minusDays(8), 1800, 0.0)), settings, today
+            listOf(cardio(today.minus(8, DateTimeUnit.DAY), 1800, 0.0)), settings, today
         )
 
         assertTrue(advice.isOverload)
@@ -250,7 +253,7 @@ class OverloadTest {
     @Test
     fun `a short cardio session still gets at least a one minute bump`() {
         val advice = Overload.forCardio(
-            listOf(cardio(today.minusDays(8), 300, 0.0)), settings, today
+            listOf(cardio(today.minus(8, DateTimeUnit.DAY), 300, 0.0)), settings, today
         )
 
         assertEquals(360, advice.target!!.durationSec)
